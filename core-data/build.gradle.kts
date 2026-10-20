@@ -8,16 +8,32 @@ plugins {
 }
 
 android {
-    namespace = "com.suseoaa.locationspoofer.data"
+    namespace = "com.vincenthzr.locationspoofer.data"
     compileSdk = 37
 
     defaultConfig {
         minSdk = 26
     }
 
+    // 与 app/build.gradle.kts 中的 scheme 维度保持一致
+    flavorDimensions += "scheme"
+    productFlavors {
+        create("scoped") {
+            dimension = "scheme"
+            buildConfigField("boolean", "GLOBAL_SCHEME", "false")
+        }
+        create("global") {
+            dimension = "scheme"
+            buildConfigField("boolean", "GLOBAL_SCHEME", "true")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    buildFeatures {
+        buildConfig = true
     }
 }
 

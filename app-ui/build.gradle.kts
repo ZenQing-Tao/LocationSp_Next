@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.suseoaa.locationspoofer.ui"
+    namespace = "com.vincenthzr.locationspoofer.ui"
     compileSdk = 37
 
     defaultConfig {
@@ -28,6 +28,19 @@ android {
         }
     }
 
+    // 与 app/build.gradle.kts 中的 scheme 维度保持一致
+    flavorDimensions += "scheme"
+    productFlavors {
+        create("scoped") {
+            dimension = "scheme"
+            buildConfigField("boolean", "GLOBAL_SCHEME", "false")
+        }
+        create("global") {
+            dimension = "scheme"
+            buildConfigField("boolean", "GLOBAL_SCHEME", "true")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -35,6 +48,31 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+/** 把仓库根目录的适配进度文档复制进 assets，App 联网取不到最新版时显示这份 */
+abstract class BundleAdaptationProgress : DefaultTask() {
+    @get:InputFile
+    abstract val source: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val src = source.get().asFile
+        src.copyTo(outputDir.get().asFile.resolve(src.name), overwrite = true)
+    }
+}
+
+val bundleAdaptationProgress = tasks.register<BundleAdaptationProgress>("bundleAdaptationProgress") {
+    source.set(rootProject.layout.projectDirectory.file("ADAPTATION_PROGRESS.md"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleAdaptationProgress, BundleAdaptationProgress::outputDir)
     }
 }
 

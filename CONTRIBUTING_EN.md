@@ -104,7 +104,7 @@ LocationSpoofer is structured using **MVVM + Clean Architecture**, split into 6 
 | `service` | Android Library | The foreground service, floating joystick service, boot-completed receiver, etc. |
 | `xposed` | Android Library | The LSPosed/Xposed injection module itself, with hooks split across `hooks/` and `hooks/network/` |
 | `core-data` | Android Library | The data/domain layer shared by `app`/`app-ui`/`service`: Room database, repositories, and core utilities such as `ConfigManager`/`RootManager`/`EnvironmentScanner` |
-| `core-geo` | Pure Kotlin/JVM | The only module with no Android dependency; coordinate-system conversion |
+| `core-geo` | Pure Kotlin/JVM | The only module with no Android dependency: coordinate conversion, route geometry, motion realism, and the system detection rules shared by the hooks and the app |
 
 Before adding new code, decide which module it belongs in: pure business logic/persistence goes in `core-data`; anything Compose-UI-only goes in `app-ui`; hook implementations only go in `xposed` (and `xposed` may only depend on `core-geo` — never depend back on `app-ui`/`core-data`, or you'll drag Room/Compose and other heavyweight dependencies into the target app's process).
 
@@ -113,12 +113,13 @@ Before adding new code, decide which module it belongs in: pure business logic/p
 * **Dependency Injection**: Koin, split per module into `coreDataModule` (`core-data`), `serviceModule` (`service`), and `viewModelModule` (`app-ui`), aggregated by `appModules` (a `List<Module>`) in the `app` module and started via `startKoin` in `LocationApp.onCreate()`. Add new injectable types to the matching module's `di/XxxModule.kt` — don't bypass DI with a manual `new`.
 * **Database**: Room Database (in `core-data`) with spatial index optimizations.
 * **Xposed Hook Layer**:
-  * Lives in the `xposed` module's `com.suseoaa.locationspoofer.xposed` package, entry class `LocationHooker`; concrete hooks are split by category across `hooks/` (location/GNSS/map SDKs/steps/anti-detection) and `hooks/network/` (Wi-Fi/cell/Bluetooth/connectivity) — file new hooks into the matching existing subpackage rather than piling them into the `xposed` root package or `LocationHooker.kt`.
+  * Lives in the `xposed` module's `com.vincenthzr.locationspoofer.xposed` package, entry class `LocationHooker`; concrete hooks are split by category across `hooks/` (location/GNSS/map SDKs/steps/anti-detection) and `hooks/network/` (Wi-Fi/cell/Bluetooth/connectivity) — file new hooks into the matching existing subpackage rather than piling them into the `xposed` root package or `LocationHooker.kt`.
   * Adheres to **LSPosed API 101+ / libxposed (Service mode)** specifications.
-  * Zero-IO on high-frequency hook threads: `LocationHooker`'s background daemon thread polls several config-file paths by caller UID (1000ms by default, backing off to 10s/60s on read failure) into an in-memory cache; hook methods only ever read that cache, no synchronous IO.
-  * Cross-process config delivery avoids `ContentProvider` (which stalls the main thread under Android 11+ package-visibility rules); instead `core-data`'s `ConfigManager` uses root to write the JSON config to `/data/local/tmp/`, `/data/system/`, and the app's private directory at once, permissions tightened to `644`, with `RootManager` dynamically injecting a dedicated SELinux type (not the generic `shell_data_file`) — don't fall back to `777` or a generic SELinux type for convenience.
+  * Hook calls only read the memory configuration cache. Framework notifications, remote file reads, and JSON decoding belong in the configuration receiver; motion delivery and service discovery use a separate timer.
+  * Both variants use libxposed remote preferences/files for complete snapshots. Finish immutable large-payload files before publishing their pointers. Retain the latest desired state for retries and reconnection. Do not reintroduce public config files, IPC in hook calls, or custom SELinux grants.
   * MultiDex safety: Dynamic ClassLoader hooking locked to the host package via `/proc/self/cmdline`.
   * Maintain clean stack traces and avoid leaving observable inspection points.
+  * **System adaptation**: system service class names and vendor differences for the global scheme live only in the adapters under `hooks/vendor/`; shared hook code never hard-codes class names. Before adding or fixing support for a system, read [vendor/README.md](xposed/src/main/java/com/vincenthzr/locationspoofer/xposed/hooks/vendor/README.md) (includes the full checklist) and [ADAPTATION_GUIDE.md](xposed/ADAPTATION_GUIDE.md), and update [ADAPTATION_PROGRESS.md](ADAPTATION_PROGRESS.md) after verifying.
 
 ### Coding Conventions
 
