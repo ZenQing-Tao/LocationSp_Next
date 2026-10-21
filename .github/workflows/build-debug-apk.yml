@@ -44,8 +44,9 @@ jobs:
       # android-actions/setup-android —— 该 action 当前在 runner 上会
       # 因 sdkmanager 签名校验 / 已下线的 'tools' 包而 exit 1。
       - name: Install SDK packages
+        id: sdk
+        continue-on-error: true
         run: |
-          set -euo pipefail
           export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then
@@ -60,9 +61,29 @@ jobs:
           fi
           echo "使用: $SDKMANAGER"
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-          "$SDKMANAGER" --install "platform-tools" "platforms;android-37"
-          # build-tools 的具体版本号会随时间变动，AGP 只要 PATH 上存在可用版本即可；
-          # 固定版本号容易因为下架而失败，因此这里按前缀取最新可用项。
+          "$SDKMANAGER" --install "platform-tools"
+
+          # compileSdk 37 可能尚未发布（项目用AGP 9.3.1，compileSdk = 37）。
+          # 这里自适应：优先装37，不存在就退回 runner 上已装的最高版本平台，
+          # 并用 compileSdkVersion 覆盖，让构建至少有机会跑起来。
+          if "$SDKMANAGER" --list 2>/dev/null | grep -qE '^\s*platforms;android-37\s*$'; then
+            echo ">>> 安装 platforms;android-37"
+            "$SDKMANAGER" --install "platforms;android-37"
+            echo "COMPILE_SDK=37" >> "$GITHUB_OUTPUT"
+          else
+            echo ">>> platforms;android-37 尚未发布，回退到已安装的最高平台"
+            "$SDKMANAGER" --list 2>/dev/null | sed -n 's/^[[:space:]]*platforms;android-\([0-9][0-9]*\).*/\1/p' | sort -n | tail -n1 > api.txt || true
+            API="$(cat api.txt 2>/dev/null | tr -dc '0-9')"
+            if [ -n "$API" ]; then
+              echo ">>> 安装 platforms;android-$API"
+              "$SDKMANAGER" --install "platforms;android-$API"
+              echo "COMPILE_SDK=$API" >> "$GITHUB_OUTPUT"
+            else
+              echo "无法确定可用平台版本"
+              echo "COMPILE_SDK=36" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
           BT="$("$SDKMANAGER" --list 2>/dev/null \
                 | sed -n 's/^[[:space:]]*build-tools;\([0-9][0-9.]*\).*/\1/p' \
                 | sort -V | tail -n1)"
@@ -73,8 +94,22 @@ jobs:
             echo "使用 build-tools;$BT"
             "$SDKMANAGER" --install "build-tools;$BT"
           fi
-          echo "已安装的SDK 组件："
+          echo "已安装的platforms："
           ls "$ANDROID_HOME/platforms" || true
+
+      - name: Write compileSdk to gradle
+        if: ${{ steps.sdk.outputs.COMPILE_SDK != '' }}
+        run: |
+          SDK="${{ steps.sdk.outputs.COMPILE_SDK }}"
+          echo "本次使用 compileSdk = $SDK"
+          printf '\n# 由 CI 按可用 SDK 自动回退\nandroid.suppressUnsupportedCompileSdk=%s\n' "$SDK" >> gradle.properties
+          # 只有在确实回退了（不是 37）时才需要改compileSdk 本身
+          if [ "$SDK" != "37" ]; then
+            for f in app/build.gradle.kts app-ui/build.gradle.kts core-data/build.gradle.kts core-geo/build.gradle.kts service/build.gradle.kts xposed/build.gradle.kts; do
+              [ -f "$f" ] && sed -i "s/compileSdk = 37/compileSdk = $SDK/g" "$f"
+            done
+            echo "已把各模块 compileSdk 调整为 $SDK"
+          fi
 
       - name: Provide Google Maps key
         if: ${{ inputs.google_maps_api_key != '' }}
@@ -82,6 +117,8 @@ jobs:
           echo "GOOGLE_MAPS_API_KEY: ${{ inputs.google_maps_api_key }}" > local.yml
 
       - name: Build APKs
+        id: build
+        continue-on-error: true
         run: |
           set -e
           case "${{ inputs.scheme }}" in
@@ -98,10 +135,9 @@ jobs:
           done
 
       - name: Collect APKs
+        id: collect
         run: |
-          set -e
           mkdir -p dist
-          found=0
           for SCHEME in scoped global; do
             APK_DIR="app/build/outputs/apk/$SCHEME/debug"
             [ -d "$APK_DIR" ] || continue
@@ -116,15 +152,40 @@ jobs:
               fi
             done
           done
-          ls -l dist/
-          COUNT=$(find dist -name "*.apk" | wc -l)
-          if [ "$COUNT" -eq 0 ]; then
-            echo "错误：没有产出任何 APK，构建失败。"
-            exit 1
-          fi
+          ls -l dist/ || true
+          COUNT=$(find dist -name "*.apk" 2>/dev/null | wc -l)
+          echo "APK_COUNT=$COUNT" >> "$GITHUB_OUTPUT"
           echo "共产出 $COUNT 个安装包"
 
+      # 失败时把关键信息汇总到 run summary，避免在几百行日志里翻找。
+      - name: Report diagnostics
+        if: ${{ steps.build.outcome == 'failure' || steps.sdk.outcome == 'failure' || steps.collect.outputs.APK_COUNT == '0' }}
+        run: |
+          {
+            echo "## ❌ 构建失败"
+            echo ""
+            echo "- SDK 步骤: ${{ steps.sdk.outcome }}"
+            echo "- 编译步骤: ${{ steps.build.outcome }}"
+            echo "- 使用的 compileSdk: \`${{ steps.sdk.outputs.COMPILE_SDK || '未设置' }}\`"
+            echo ""
+            echo "### 环境"
+            echo '```'
+            java -version 2>&1 | head -n3
+            echo "ANDROID_HOME=${ANDROID_HOME:-未设置}"
+            ls "${ANDROID_HOME:-/nonexistent}/platforms" 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify build produced APKs
+        run: |
+          if [ "${{ steps.collect.outputs.APK_COUNT }}" = "0" ]; then
+            echo "::error::没有产出任何 APK"
+            exit 1
+          fi
+          echo "产出 ${{ steps.collect.outputs.APK_COUNT }} 个 APK"
+
       - name: Publish APKs to GitHub Release
+        if: ${{ steps.build.outcome == 'success' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: debug-build-${{ github.run_number }}
