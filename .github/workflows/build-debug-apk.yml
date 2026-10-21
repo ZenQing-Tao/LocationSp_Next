@@ -39,12 +39,42 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # AGP 9.x 需要 cmdline-tools 提供 compileSdk 37 的 platform 与 build-tools。
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
+      # GitHub runner 已自带可用的 Android SDK，这里直接用预置的 sdkmanager补齐
+      # compileSdk 37 所需的 platform 与 build-tools，不再依赖
+      # android-actions/setup-android —— 该 action 当前在 runner 上会
+      # 因 sdkmanager 签名校验 / 已下线的 'tools' 包而 exit 1。
       - name: Install SDK packages
-        run: sdkmanager "platforms;android-37" "build-tools;37.0.0" "platform-tools"
+        run: |
+          set -euo pipefail
+          export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            for c in "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager; do
+              [ -x "$c" ] && SDKMANAGER="$c" && break
+            done
+          fi
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "找不到 sdkmanager，ANDROID_HOME=$ANDROID_HOME"
+            ls -la "$ANDROID_HOME" || true
+            exit 1
+          fi
+          echo "使用: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-37"
+          # build-tools 的具体版本号会随时间变动，AGP 只要 PATH 上存在可用版本即可；
+          # 固定版本号容易因为下架而失败，因此这里按前缀取最新可用项。
+          BT="$("$SDKMANAGER" --list 2>/dev/null \
+                | sed -n 's/^[[:space:]]*build-tools;\([0-9][0-9.]*\).*/\1/p' \
+                | sort -V | tail -n1)"
+          if [ -z "$BT" ]; then
+            echo "无法解析可用的 build-tools 版本，改为安装默认最新版本"
+            "$SDKMANAGER" --install "build-tools"
+          else
+            echo "使用 build-tools;$BT"
+            "$SDKMANAGER" --install "build-tools;$BT"
+          fi
+          echo "已安装的SDK 组件："
+          ls "$ANDROID_HOME/platforms" || true
 
       - name: Provide Google Maps key
         if: ${{ inputs.google_maps_api_key != '' }}
