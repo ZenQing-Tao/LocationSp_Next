@@ -1,0 +1,118 @@
+name: Build Installable APKs
+
+# 手动触发的构建：不需要任何密钥，产出可直接安装的 Debug APK。
+# 与 release.yml 区别：release.yml 依赖 KEYSTORE_* 密钥做正式签名，
+# 且只在版本号变化时自动触发；本 workflow 走 debug 签名，随时可跑。
+on:
+  workflow_dispatch:
+    inputs:
+      google_maps_api_key:
+        description: '可选：Google Maps API Key（留空则 Google 地图不可用，其余功能正常）'
+        required: false
+        default: ''
+      scheme:
+        description: '构建哪些方案'
+        type: choice
+        options:
+          - both
+          - scoped
+          - global
+        default: both
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # AGP 9.x 需要 cmdline-tools 提供 compileSdk 37 的 platform 与 build-tools。
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-37" "build-tools;37.0.0" "platform-tools"
+
+      - name: Provide Google Maps key
+        if: ${{ inputs.google_maps_api_key != '' }}
+        run: |
+          echo "GOOGLE_MAPS_API_KEY: ${{ inputs.google_maps_api_key }}" > local.yml
+
+      - name: Build APKs
+        run: |
+          set -e
+          case "${{ inputs.scheme }}" in
+            scoped) TASKS=":app:assembleScopedDebug" ;;
+            global) TASKS=":app:assembleGlobalDebug" ;;
+            both)   TASKS=":app:assembleScopedDebug :app:assembleGlobalDebug" ;;
+          esac
+          echo "Building: $TASKS"
+          # 与 release.yml 同样的坑：一次调用里并行打包多个变体 × ABI 拆分时，
+          # AGP 的签名摘要任务会和打包写文件任务抢占 ForkJoinPool 而互相死锁。
+          # 因此这里按变体逐个调用。
+          for T in $TASKS; do
+            ./gradlew --no-daemon "$T"
+          done
+
+      - name: Collect APKs
+        run: |
+          set -e
+          mkdir -p dist
+          found=0
+          for SCHEME in scoped global; do
+            APK_DIR="app/build/outputs/apk/$SCHEME/debug"
+            [ -d "$APK_DIR" ] || continue
+            find "$APK_DIR" -name "*.apk" -print0 | while IFS= read -r -d '' file; do
+              BASENAME=$(basename "$file")
+              if [[ "$BASENAME" == *"arm64-v8a"* ]]; then
+                cp "$file" "dist/LocationSpoofer-$SCHEME-arm64-v8a.apk"
+              elif [[ "$BASENAME" == *"armeabi-v7a"* ]]; then
+                cp "$file" "dist/LocationSpoofer-$SCHEME-armeabi-v7a.apk"
+              else
+                cp "$file" "dist/LocationSpoofer-$SCHEME-universal.apk"
+              fi
+            done
+          done
+          ls -l dist/
+          COUNT=$(find dist -name "*.apk" | wc -l)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "错误：没有产出任何 APK，构建失败。"
+            exit 1
+          fi
+          echo "共产出 $COUNT 个安装包"
+
+      - name: Publish APKs to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-build-${{ github.run_number }}
+          name: Debug 构建 ${{ github.run_number }}
+          body: |
+            由 `build-debug-apk.yml` 手动触发产出，使用 **debug 签名**。
+
+            - 直接安装即可，无需额外配置
+            - 与正式签名的 release 版本签名不同，**不能覆盖安装**，需先卸载旧版
+            - 包名 `com.vincenthzr.locationspoofer`
+            - `scoped`：在 LSPosed 作用域里勾选目标 App
+            - `global`：Hook 系统服务，对全设备生效
+
+            **重要**：本项目源码不包含任何登录/订阅逻辑，装上后直接用。
+            地图与第三方数据源请在「设置」里填自己的 Key：
+            - 高德 / 百度 / Google → 设置 → 地图引擎与密钥
+            - WiGLE / OpenCellID → 设置 → 环境数据源 Token
+          files: dist/*.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

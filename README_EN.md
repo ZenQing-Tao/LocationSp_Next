@@ -210,7 +210,7 @@ The global scheme hooks system services directly, and their internals differ bet
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/LocationSpoofer.git
+git clone https://github.com/ZenQing-Tao/LocationSpoofer.git
 
 # 2. Build and install Debug APK
 ./gradlew installDebug
