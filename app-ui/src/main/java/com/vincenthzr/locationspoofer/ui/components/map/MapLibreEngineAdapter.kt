@@ -424,10 +424,13 @@ class MapLibreControllerImpl(
             """.trimIndent()
         }
 
-        // OpenStreetMap 官方公共瓦片（使用政策要求有效 UA、禁止批量抓取）
-        private const val OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        // CARTO 免费栅格底图：无需 Key、无需 Referer，国内外均可直连。
+        // 注意：OpenStreetMap 官方瓦片 tile.openstreetmap.org 现在要求请求携带 Referer，
+        // 原生 App（MapLibre）不带 Referer 会被返回 x-blocked 的空白瓦片，不能直接用。
+        private const val OSM_TILES =
+            "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
         private const val OSM_ATTRIBUTION =
-            "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
+            "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors &copy; <a href=\"https://carto.com/attributions\">CARTO</a>"
 
         // Esri World Imagery 卫星影像（按其条款需署名）
         private const val SATELLITE_TILES =
