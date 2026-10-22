@@ -44,6 +44,7 @@ import com.vincenthzr.locationspoofer.ui.theme.noRippleClickable
 import com.vincenthzr.locationspoofer.viewmodel.MainViewModel
 import com.vincenthzr.locationspoofer.viewmodel.setAmapApiKey
 import com.vincenthzr.locationspoofer.viewmodel.setBaiduApiKey
+import com.vincenthzr.locationspoofer.viewmodel.setCustomTileUrl
 import com.vincenthzr.locationspoofer.viewmodel.setGoogleApiKey
 import com.vincenthzr.locationspoofer.viewmodel.setKeepLastMapPosition
 import com.vincenthzr.locationspoofer.viewmodel.setMapEngine
@@ -60,6 +61,7 @@ fun MapEngineSettingsScreen(
     var localAmapApiKey by remember(uiState.amapApiKey) { mutableStateOf(uiState.amapApiKey) }
     var localBaiduApiKey by remember(uiState.baiduApiKey) { mutableStateOf(uiState.baiduApiKey) }
     var localGoogleApiKey by remember(uiState.googleApiKey) { mutableStateOf(uiState.googleApiKey) }
+    var localTileUrl by remember(uiState.customTileUrl) { mutableStateOf(uiState.customTileUrl) }
 
     BackHandler(onBack = onClose)
 
@@ -272,11 +274,33 @@ fun MapEngineSettingsScreen(
                         }
                     }
 
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = stringResource(R.string.custom_tile_url),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    ModernSettingsInput(
+                        label = stringResource(R.string.custom_tile_url),
+                        value = localTileUrl,
+                        onValueChange = { localTileUrl = it },
+                        placeholder = stringResource(R.string.custom_tile_url_hint),
+                        isDark = isDark
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.custom_tile_url_desc),
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    )
                     Button(
                         onClick = {
                             viewModel.setAmapApiKey(localAmapApiKey)
                             viewModel.setBaiduApiKey(localBaiduApiKey)
                             viewModel.setGoogleApiKey(localGoogleApiKey)
+                            viewModel.setCustomTileUrl(localTileUrl)
                             Toast.makeText(
                                 context,
                                 context.getString(R.string.restart_required_hint),

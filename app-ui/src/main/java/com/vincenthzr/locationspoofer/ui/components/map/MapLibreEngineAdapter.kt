@@ -336,22 +336,58 @@ class MapLibreControllerImpl(
         if (type == currentMapType && styleApplied) return
         currentMapType = type
         styleApplied = true
-        val satellite = type == AppMapType.SATELLITE
-        // setStyle 是异步的：必须在回调里重绘叠加物，否则会画到已销毁的旧 Style 上
-        map.setStyle(Style.Builder().fromJson(buildStyleJson(satellite))) { style ->
+        applyStyle()
+    }
+
+    override fun setDarkMode(isDark: Boolean, context: Context) {
+        if (isDarkMode == isDark && styleApplied) {
+            applyDarkPaint()
+            return
+        }
+        isDarkMode = isDark
+        if (currentMapType == AppMapType.NORMAL) {
+            // 矢量底图有独立的深色样式，直接换样式（rebuildOverlays 会重建标注）
+            applyStyle()
+        } else {
+            // 卫星图是栅格，不换样式，只压暗 png
+            applyDarkPaint()
+        }
+    }
+
+    /** 按当前地图类型 + 明暗主题应用样式。setStyle 是异步的，叠加物在回调里重建。 */
+    private fun applyStyle() {
+        val custom = customTileUrl()
+        val builder = when {
+            currentMapType == AppMapType.SATELLITE ->
+                Style.Builder().fromJson(buildSatelliteStyleJson())
+
+            // 用户自定义：以 .json 结尾视为样式地址，其余视为栅格瓦片模板
+            custom.endsWith(".json", ignoreCase = true) ->
+                Style.Builder().fromUri(custom)
+
+            custom.isNotEmpty() ->
+                Style.Builder().fromJson(buildRasterStyleJson(custom))
+
+            else ->
+                Style.Builder().fromUri(if (isDarkMode) VECTOR_DARK_STYLE_URL else VECTOR_LIGHT_STYLE_URL)
+        }
+        map.setStyle(builder) { style ->
             rebuildOverlays(style)
         }
     }
 
-    override fun setDarkMode(isDark: Boolean, context: Context) {
-        isDarkMode = isDark
-        applyDarkPaint()
-    }
+    /** 读取用户自定义瓦片地址；留空表示使用内置 OpenFreeMap 矢量样式。 */
+    private fun customTileUrl(): String = context
+        .getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        .getString("custom_tile_url", "")
+        ?.trim()
+        .orEmpty()
 
     /** 深色：只改 raster paint 属性，不动 style，因此标注不会丢失。 */
     private fun applyDarkPaint() {
         val style = map.style ?: return
-        val layer = runCatching { style.getLayer(RASTER_LAYER_ID) as? RasterLayer }.getOrNull()
+        val layer = (runCatching { style.getLayer(CUSTOM_LAYER_ID) }.getOrNull()
+            ?: runCatching { style.getLayer(RASTER_LAYER_ID) }.getOrNull()) as? RasterLayer
             ?: return
         runCatching {
             if (isDarkMode) {
@@ -393,50 +429,67 @@ class MapLibreControllerImpl(
     }
 
     companion object {
-        private const val OSM_SOURCE_ID = "osm-raster-source"
         private const val SATELLITE_SOURCE_ID = "satellite-raster-source"
-        private const val RASTER_LAYER_ID = "osm-raster-layer"
+        private const val RASTER_LAYER_ID = "satellite-raster-layer"
+        private const val CUSTOM_LAYER_ID = "custom-raster-layer"
+        private const val CUSTOM_ATTRIBUTION = "Tiles © their respective providers"
 
-        private fun buildStyleJson(satellite: Boolean): String {
-            val sourceId = if (satellite) SATELLITE_SOURCE_ID else OSM_SOURCE_ID
-            val tiles = if (satellite) SATELLITE_TILES else OSM_TILES
-            val attribution = if (satellite) SATELLITE_ATTRIBUTION else OSM_ATTRIBUTION
-            return """
-                {
-                  "version": 8,
-                  "sources": {
-                    "$sourceId": {
-                      "type": "raster",
-                      "tiles": ["$tiles"],
-                      "tileSize": 256,
-                      "maxzoom": 19,
-                      "attribution": "$attribution"
-                    }
-                  },
-                  "layers": [
-                    {
-                      "id": "$RASTER_LAYER_ID",
-                      "type": "raster",
-                      "source": "$sourceId"
-                    }
-                  ]
-                }
-            """.trimIndent()
-        }
+        // 普通底图：OpenFreeMap 矢量样式。免 Key、免注册、无调用配额，由 Cloudflare 承载。
+        // 实测（2026-10）：style JSON 与 .pbf 瓦片在国内网络均可直连。
+        // 可选样式：liberty / bright / positron / dark。
+        private const val VECTOR_LIGHT_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+        private const val VECTOR_DARK_STYLE_URL = "https://tiles.openfreemap.org/styles/dark"
 
-        // CARTO 免费栅格底图：无需 Key、无需 Referer，国内外均可直连。
-        // 注意：OpenStreetMap 官方瓦片 tile.openstreetmap.org 现在要求请求携带 Referer，
-        // 原生 App（MapLibre）不带 Referer 会被返回 x-blocked 的空白瓦片，不能直接用。
-        private const val OSM_TILES =
-            "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-        private const val OSM_ATTRIBUTION =
-            "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors &copy; <a href=\"https://carto.com/attributions\">CARTO</a>"
-
-        // Esri World Imagery 卫星影像（按其条款需署名）
+        // 卫星影像：Esri World Imagery（栅格，按其条款需署名）
         private const val SATELLITE_TILES =
             "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         private const val SATELLITE_ATTRIBUTION =
             "Tiles &copy; <a href=\"https://www.esri.com/\">Esri</a>"
+
+        /** 自定义栅格瓦片源的 style JSON。 */
+        private fun buildRasterStyleJson(tilesUrl: String): String = """
+            {
+              "version": 8,
+              "sources": {
+                "custom-raster-source": {
+                  "type": "raster",
+                  "tiles": ["$tilesUrl"],
+                  "tileSize": 256,
+                  "maxzoom": 22,
+                  "attribution": "$CUSTOM_ATTRIBUTION"
+                }
+              },
+              "layers": [
+                {
+                  "id": "$CUSTOM_LAYER_ID",
+                  "type": "raster",
+                  "source": "custom-raster-source"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        private fun buildSatelliteStyleJson(): String = """
+            {
+              "version": 8,
+              "sources": {
+                "$SATELLITE_SOURCE_ID": {
+                  "type": "raster",
+                  "tiles": ["$SATELLITE_TILES"],
+                  "tileSize": 256,
+                  "maxzoom": 19,
+                  "attribution": "$SATELLITE_ATTRIBUTION"
+                }
+              },
+              "layers": [
+                {
+                  "id": "$RASTER_LAYER_ID",
+                  "type": "raster",
+                  "source": "$SATELLITE_SOURCE_ID"
+                }
+              ]
+            }
+        """.trimIndent()
     }
 }
 

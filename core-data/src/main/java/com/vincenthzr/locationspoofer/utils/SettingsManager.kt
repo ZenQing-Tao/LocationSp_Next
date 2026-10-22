@@ -55,6 +55,11 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("google_api_key", "") ?: ""
         set(value) = prefs.edit().putString("google_api_key", value).apply()
 
+    /** 自定义底图瓦片地址。留空 = 使用内置 OpenFreeMap 矢量样式。 */
+    var customTileUrl: String
+        get() = prefs.getString("custom_tile_url", "") ?: ""
+        set(value) = prefs.edit().putString("custom_tile_url", value).apply()
+
     var wigleApiToken: String
         get() = prefs.getString("wigle_api_token", "") ?: ""
         set(value) = prefs.edit().putString("wigle_api_token", value).apply()

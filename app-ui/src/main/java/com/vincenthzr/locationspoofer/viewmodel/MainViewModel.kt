@@ -102,7 +102,8 @@ class MainViewModel(
             altitudeVariationM = settingsRepository.altitudeVariationM,
             satelliteCountInput = settingsRepository.satelliteCount,
             wigleToken = settingsRepository.getWigleApiToken(),
-            opencellidToken = settingsRepository.getOpencellidApiToken()
+            opencellidToken = settingsRepository.getOpencellidApiToken(),
+            customTileUrl = settingsRepository.getCustomTileUrl()
         )
     )
     val uiState: StateFlow<AppState> = _uiState.asStateFlow()

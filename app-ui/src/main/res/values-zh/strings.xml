@@ -642,4 +642,7 @@
     <string name="collection_route_delete_title">删除采集路线</string>
     <string name="collection_route_delete_message">删除“%1$s”及其全部采样数据？</string>
     <string name="local_collection_records_count">%1$d 个点位 · %2$d 条路线</string>
+    <string name="custom_tile_url">自定义瓦片地址</string>
+    <string name="custom_tile_url_hint">留空则使用内置 OpenFreeMap 矢量底图</string>
+    <string name="custom_tile_url_desc">支持栅格瓦片模板（含 {z}/{x}/{y}）或 .json 样式地址</string>
 </resources>

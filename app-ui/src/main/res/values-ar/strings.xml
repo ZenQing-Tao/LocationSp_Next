@@ -454,4 +454,7 @@
     <string name="collection_stopping">جارٍ إنهاء الجمع…</string>
     <string name="collection_no_saved_points">لم يتم حفظ أي نقاط. تحقق من الموقع وأذونات الجمع ثم حاول مجددًا.</string>
     <string name="collection_info_save_failed">تعذر حفظ تفاصيل النقطة. حاول مجددًا.</string>
+    <string name="custom_tile_url">Custom tile URL</string>
+    <string name="custom_tile_url_hint">Leave empty to use the built-in OpenFreeMap vector basemap</string>
+    <string name="custom_tile_url_desc">Supports a raster tile template (with {z}/{x}/{y}) or a .json style URL</string>
 </resources>

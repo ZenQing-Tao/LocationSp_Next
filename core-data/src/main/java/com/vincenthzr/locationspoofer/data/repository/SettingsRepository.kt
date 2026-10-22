@@ -50,6 +50,12 @@ class SettingsRepository(private val settingsManager: SettingsManager) {
         settingsManager.googleApiKey = value
     }
 
+    fun getCustomTileUrl(): String = settingsManager.customTileUrl
+
+    fun setCustomTileUrl(value: String) {
+        settingsManager.customTileUrl = value
+    }
+
     fun getWigleApiToken(): String = settingsManager.wigleApiToken
 
     fun setWigleApiToken(value: String) {

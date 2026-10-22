@@ -642,4 +642,7 @@ Error details: %s</string>
     <string name="collection_route_delete_title">Delete collected route</string>
     <string name="collection_route_delete_message">Delete “%1$s” and all its collected samples?</string>
     <string name="local_collection_records_count">%1$d points · %2$d routes</string>
+    <string name="custom_tile_url">Custom tile URL</string>
+    <string name="custom_tile_url_hint">Leave empty to use the built-in OpenFreeMap vector basemap</string>
+    <string name="custom_tile_url_desc">Supports a raster tile template (with {z}/{x}/{y}) or a .json style URL</string>
 </resources>

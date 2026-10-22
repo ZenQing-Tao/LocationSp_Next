@@ -190,6 +190,11 @@ internal fun MainViewModel.setMapEngine(engine: MapEngine) {
     _uiState.update { it.copy(mapEngine = engine) }
 }
 
+internal fun MainViewModel.setCustomTileUrl(url: String) {
+    settingsRepository.setCustomTileUrl(url.trim())
+    _uiState.update { it.copy(customTileUrl = url.trim()) }
+}
+
 internal fun MainViewModel.setRootSolution(solution: RootSolution) {
     settingsRepository.setRootSolution(solution.name)
     _uiState.update { it.copy(rootSolution = solution) }
