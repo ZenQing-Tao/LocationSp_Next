@@ -143,19 +143,30 @@ jobs:
         id: collect
         run: |
           mkdir -p dist
-          for SCHEME in scoped global; do
-            APK_DIR="app/build/outputs/apk/$SCHEME/debug"
-            [ -d "$APK_DIR" ] || continue
-            find "$APK_DIR" -name "*.apk" -print0 | while IFS= read -r -d '' file; do
-              BASENAME=$(basename "$file")
-              if [[ "$BASENAME" == *"arm64-v8a"* ]]; then
-                cp "$file" "dist/LocationSpoofer-$SCHEME-arm64-v8a.apk"
-              elif [[ "$BASENAME" == *"armeabi-v7a"* ]]; then
-                cp "$file" "dist/LocationSpoofer-$SCHEME-armeabi-v7a.apk"
-              else
-                cp "$file" "dist/LocationSpoofer-$SCHEME-universal.apk"
-              fi
-            done
+          # 不写死 APK 输出目录：AGP 9 配合 ABI 拆分时产物路径随版本变化，
+          # 这里从 app/build/outputs 下递归收集，再按文件名里的 scheme/abi 标记重命名。
+          OUT_ROOT="app/build/outputs"
+          if [ ! -d "$OUT_ROOT" ]; then
+            echo "错误：找不到 $OUT_ROOT，构建可能未真正产出任何文件"
+            exit 1
+          fi
+          echo "=== outputs 目录结构 ==="
+          find "$OUT_ROOT" -maxdepth 3 -type d | head -n 40
+          echo "=== 原始 APK 列表 ==="
+          find "$OUT_ROOT" -name "*.apk" -type f | head -n 40
+
+          find "$OUT_ROOT" -name "*.apk" -type f -print0 | while IFS= read -r -d '' file; do
+            BASENAME=$(basename "$file")
+            SCHEME="scoped"
+            [[ "$BASENAME" == *"-global"* ]] && SCHEME="global"
+            if [[ "$BASENAME" == *"arm64-v8a"* ]]; then
+              ABI="arm64-v8a"
+            elif [[ "$BASENAME" == *"armeabi-v7a"* ]]; then
+              ABI="armeabi-v7a"
+            else
+              ABI="universal"
+            fi
+            cp "$file" "dist/LocationSpoofer-$SCHEME-$ABI.apk"
           done
           ls -l dist/ || true
           COUNT=$(find dist -name "*.apk" 2>/dev/null | wc -l)
