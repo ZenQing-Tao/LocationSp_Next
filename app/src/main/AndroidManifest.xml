@@ -40,17 +40,20 @@
         android:description="@string/app_description"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         
+        <!-- 高德 Android 平台 Key：仓库不内置任何 Key，需在项目根目录 local.yml 的 AMAP_API_KEY
+             或环境变量 AMAP_API_KEY 中自行配置；留空时地图引擎会回退到无需 Key 的 OSM。 -->
         <meta-data
             android:name="com.amap.api.v2.apikey"
-            android:value="bdd6ae6c613b2a45b5583197f565423b" />
+            android:value="${amapApiKey}" />
         
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${googleMapsApiKey}" />
 
+        <!-- 百度地图 Android AK：同样不内置，通过 BAIDU_MAP_API_KEY 配置 -->
         <meta-data
             android:name="com.baidu.lbsapi.API_KEY"
-            android:value="Io41bNEhfVx3CCsud5jjrft3UOpeh2WF" />
+            android:value="${baiduApiKey}" />
         
         <activity
             android:name=".MainActivity"

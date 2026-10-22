@@ -27,8 +27,14 @@ class BaiduMapControllerImpl(
     override fun setDarkMode(isDark: Boolean, context: Context) {
         isDarkMode = isDark
         val customStyleOptions = com.baidu.mapapi.map.MapCustomStyleOptions()
-        if (isDark) {
-            customStyleOptions.customStyleId("ed7541b0077ffda0205ff36f2a5633b1")
+        // 百度个性化地图样式 ID 绑定在具体开发者账号下，仓库不内置他人的样式 ID。
+        // 需要深色自定义样式时，自行在百度地图控制台创建样式并写入 app_settings 的
+        // baidu_custom_style_id，留空则直接使用百度默认底图。
+        val customStyleId = context
+            .getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            .getString("baidu_custom_style_id", "")?.trim().orEmpty()
+        if (isDark && customStyleId.isNotEmpty()) {
+            customStyleOptions.customStyleId(customStyleId)
             mapView.setMapCustomStyle(
                 customStyleOptions,
                 object : com.baidu.mapapi.map.CustomMapStyleCallBack {

@@ -41,6 +41,30 @@
 
 ---
 
+## 地图 Key 与第三方服务说明
+
+本仓库**不内置任何第三方地图 Key**（高德、百度、Google 构建时均为空）。Key 通过项目根目录的 `local.yml`（已被 `.gitignore` 忽略）或同名环境变量注入，模板见 `local.yml.example`。
+
+| 变量 | 用途 | 申请要点 |
+| --- | --- | --- |
+| `AMAP_API_KEY` | 高德 Android SDK（地图 / 定位 / 搜索） | 高德开放平台 → 应用管理 → 添加 Key，平台选 **Android**，填写包名与签名 SHA1。SDK 免费且不限调用量，但**搜索类接口有每日配额**，多人共享同一个 Key 极易被打满（表现为“高德搜索 API 调用失败 / 额度耗尽”） |
+| `BAIDU_MAP_API_KEY` | 百度地图 Android SDK | 百度地图开放平台 → 创建应用选 **Android SDK**，填写包名与签名 SHA1 |
+| `GOOGLE_MAPS_API_KEY` | Google Maps / Places | Google Cloud Console 申请，**按次计费**，务必配置包名 + SHA1 + API 白名单限制 |
+
+补充说明：
+
+- 未配置 Key 时，App 不会拿空 Key 去请求地图服务，可在 App 内「设置 → 地图引擎」临时填入自己的 Key。
+- 百度个性化地图样式 ID 同样不内置：需要深色自定义样式时，自己在百度控制台创建，再写入 `app_settings` 的 `baidu_custom_style_id`。
+- 请勿把他人的 Key 提交进仓库或打进公开安装包。Key 绑定包名与签名，转借给他人既无法生效，也违反各平台开发者协议；共享 Key 还会互相挤占调用配额。
+
+配置示例：
+
+```yaml
+AMAP_API_KEY: "你的高德 Key"
+BAIDU_MAP_API_KEY: "你的百度 AK"
+GOOGLE_MAPS_API_KEY: "你的 Google Key"
+```
+
 ## 功能特性
 
 ```
