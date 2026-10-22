@@ -41,7 +41,7 @@ class UpdateViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
-                    .url("https://api.github.com/repos/ZenQing-Tao/LocationSpoofer/releases")
+                    .url("https://api.github.com/repos/ZenQing-Tao/LocationSp_Next/releases")
                     .header("Accept", "application/vnd.github.v3+json")
                     .build()
 

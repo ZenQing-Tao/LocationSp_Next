@@ -212,7 +212,7 @@ private var cachedPlacesClient: com.google.android.libraries.places.api.net.Plac
 
 private const val NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/search"
 private const val NOMINATIM_USER_AGENT =
-    "LocationSpoofer/3.1 (Android; +https://github.com/ZenQing-Tao/LocationSpoofer)"
+    "LocationSp_Next/3.1 (Android; +https://github.com/ZenQing-Tao/LocationSp_Next)"
 private const val NOMINATIM_MIN_INTERVAL_MS = 1100L
 
 private val nominatimThrottleLock = Any()
