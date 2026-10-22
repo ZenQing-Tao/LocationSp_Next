@@ -11,6 +11,13 @@
 
 > ⚠️ **使用前必读**：本项目仅供**学习、研究、交流**，以及在**自有设备、自有应用或已获得明确书面授权的环境**中做定位测试。**严禁用于任何违法用途**，详见文末「免责声明与使用限制」。
 
+<p align="center">
+  <img src="docs/images/app_icon.png" width="128" alt="LocationSp_Next 应用图标">
+</p>
+<p align="center"><sub>图标灵感来源于「缩地青符」</sub></p>
+<p align="center"><strong>坐地不动，日行千里</strong></p>
+
+
 ---
 
 ## 来源与许可
@@ -163,6 +170,7 @@ CI：`.github/workflows/build-debug-apk.yml`（手动触发，产出可直接安
 - 本分支修改部分版权：**Copyright © 2026 ZenQing-Tao**；
 - 依 [GNU General Public License v3.0](./LICENSE) 分发；修改记录见 [`NOTICE`](./NOTICE)；
 - 第三方组件（高德 / 百度 / Google Maps / MapLibre / Room / Jetpack Compose 等）版权归各自权利人所有，遵循各自许可证。
+- 应用图标由本项目自制，灵感来源于「缩地青符」。
 
 **分发本项目二进制时，请同时提供对应版本的完整源码，并保留 `LICENSE`、`NOTICE` 与本文件中的署名与免责声明。**
 
