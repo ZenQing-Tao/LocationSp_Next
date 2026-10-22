@@ -197,7 +197,7 @@ jobs:
             else
               ABI="universal"
             fi
-            cp "$file" "dist/LocationSpoofer-$SCHEME-$ABI.apk"
+            cp "$file" "dist/LocationSpoofer_Next-$SCHEME-$ABI.apk"
           done
           ls -l dist/ || true
           COUNT=$(find dist -name "*.apk" 2>/dev/null | wc -l)

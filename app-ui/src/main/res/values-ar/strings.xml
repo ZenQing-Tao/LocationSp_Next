@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <resources>
-    <string name="app_name">LocationSpoofer</string>
+    <string name="app_name">LocaSpNext</string>
     <string name="map_type_label">نوع الخريطة</string>
     <string name="map_type_standard">خريطة قياسية</string>
     <string name="map_type_satellite">خريطة القمر الصناعي</string>
