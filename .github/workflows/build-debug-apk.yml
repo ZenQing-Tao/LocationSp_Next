@@ -71,27 +71,32 @@ jobs:
           # compileSdk 37 可能尚未发布（项目用AGP 9.3.1，compileSdk = 37）。
           # 这里自适应：优先装37，不存在就退回 runner 上已装的最高版本平台，
           # 并用 compileSdkVersion 覆盖，让构建至少有机会跑起来。
-          if "$SDKMANAGER" --list 2>/dev/null | grep -qE '^\s*platforms;android-37\s*$'; then
-            echo ">>> 安装 platforms;android-37"
-            "$SDKMANAGER" --install "platforms;android-37"
-            echo "COMPILE_SDK=37" >> "$GITHUB_OUTPUT"
-          else
-            echo ">>> platforms;android-37 尚未发布，回退到已安装的最高平台"
-            "$SDKMANAGER" --list 2>/dev/null | sed -n 's/^[[:space:]]*platforms;android-\([0-9][0-9]*\).*/\1/p' | sort -n | tail -n1 > api.txt || true
-            API="$(cat api.txt 2>/dev/null | tr -dc '0-9')"
-            if [ -n "$API" ]; then
-              echo ">>> 安装 platforms;android-$API"
-              "$SDKMANAGER" --install "platforms;android-$API"
-              echo "COMPILE_SDK=$API" >> "$GITHUB_OUTPUT"
-            else
-              echo "无法确定可用平台版本"
-              echo "COMPILE_SDK=36" >> "$GITHUB_OUTPUT"
+          # 注意：--list 里同时存在 android-37.0 / 37.1 / 37.2-betaN 等条目，
+          # 取最大值会误选到 beta 或不存在的小版本号，导致 sdkmanager 装不上。
+          # 这里只认「稳定的大版本」（纯数字），再逐个降级尝试。
+          API=""
+          for CAND in 37 36 35; do
+            if "$SDKMANAGER" --list 2>/dev/null \
+                 | grep -qE "^[[:space:]]*platforms;android-${CAND}[[:space:]]*$"; then
+              echo ">>> 安装 platforms;android-$CAND"
+              if "$SDKMANAGER" --install "platforms;android-$CAND"; then
+                API="$CAND"
+                break
+              fi
+              echo ">>> platforms;android-$CAND 安装失败，尝试更低版本"
             fi
+          done
+          if [ -z "$API" ]; then
+            echo "警告：未能安装任何稳定平台，继续尝试构建（Gradle 会给出明确报错）"
+            echo "COMPILE_SDK=36" >> "$GITHUB_OUTPUT"
+          else
+            echo "COMPILE_SDK=$API" >> "$GITHUB_OUTPUT"
           fi
 
+          # build-tools 取最新的稳定版（排除 pre/rc）
           BT="$("$SDKMANAGER" --list 2>/dev/null \
                 | sed -n 's/^[[:space:]]*build-tools;\([0-9][0-9.]*\).*/\1/p' \
-                | sort -V | tail -n1)"
+                | grep -v -E '(rc|beta|pre)' | sort -V | tail -n1)"
           if [ -z "$BT" ]; then
             echo "无法解析可用的 build-tools 版本，改为安装默认最新版本"
             "$SDKMANAGER" --install "build-tools"
@@ -125,19 +130,28 @@ jobs:
         id: build
         continue-on-error: true
         run: |
-          set -e
           case "${{ inputs.scheme }}" in
             scoped) TASKS=":app:assembleScopedDebug" ;;
             global) TASKS=":app:assembleGlobalDebug" ;;
             both)   TASKS=":app:assembleScopedDebug :app:assembleGlobalDebug" ;;
           esac
           echo "Building: $TASKS"
+          RC=0
           # 与 release.yml 同样的坑：一次调用里并行打包多个变体 × ABI 拆分时，
           # AGP 的签名摘要任务会和打包写文件任务抢占 ForkJoinPool 而互相死锁。
-          # 因此这里按变体逐个调用。
+          # 因此这里按变体逐个调用，并且不要 set -e，否则单个变体失败会直接
+          # 跳过后面的变体，也看不出到底哪个任务出了问题。
           for T in $TASKS; do
-            ./gradlew --no-daemon "$T"
+            echo "---- gradle $T ----"
+            ./gradlew --no-daemon "$T" || RC=$?
           done
+          echo "gradle exit code: $RC"
+          # 无论成败都打印产物位置，便于定位
+          echo "=== build 目录概览 ==="
+          find app/build -maxdepth 2 -type d 2>/dev/null | head -n 30 || true
+          echo "=== 全仓库 *.apk ==="
+          find . -name "*.apk" -type f -not -path "./.git/*" 2>/dev/null | head -n 30 || true
+          exit $RC
 
       - name: Collect APKs
         id: collect
