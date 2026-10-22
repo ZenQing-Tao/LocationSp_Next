@@ -123,8 +123,8 @@ jobs:
           cat >> changelog.txt <<'NOTES'
 
           ## 安装包说明
-          - `LocationSp_Next-scoped-*`：非全局方案，在 LSPosed 作用域中勾选需要模拟的应用
-          - `LocationSp_Next-global-*`：全局方案，作用域勾选系统框架、电话、蓝牙，对全设备生效
+          - `LocationSpoofer-scoped-*`：非全局方案，在 LSPosed 作用域中勾选需要模拟的应用
+          - `LocationSpoofer-global-*`：全局方案，作用域勾选系统框架、电话、蓝牙，对全设备生效
           - 两个方案二选一安装；绝大多数设备选择 `arm64-v8a`，32 位设备选择 `armeabi-v7a`
           - 各系统的适配进度见 [ADAPTATION_PROGRESS.md](${{ github.server_url }}/${{ github.repository }}/blob/main/ADAPTATION_PROGRESS.md)
 
@@ -137,12 +137,6 @@ jobs:
 
           新旧两个模块同时启用会同时改写定位服务、互相干扰，请务必先停用旧模块。
           NOTES
-          cat >> changelog.txt <<'SRC'
-          ## 源码与许可
-          - 本版对应完整源码：[${{ steps.check_version.outputs.tag }}](${{ github.server_url }}/${{ github.repository }}/tree/${{ steps.check_version.outputs.tag }})
-          - 本项目为 LocationSpoofer 的非官方延续分支，依 **GNU GPLv3** 分发；原作品版权 © 2026 SuseOAA，修改部分 © 2026 ZenQing-Tao
-          - 仅供学习研究与自有设备/授权环境测试，**严禁用于违法违规用途**
-          SRC
 
           cat changelog.txt
           
@@ -153,6 +147,14 @@ jobs:
           distribution: 'temurin'
           java-version: '17' # Gradle 需要 Java 17 进行编译
           cache: 'gradle'
+
+      # 安全门：没有配置签名密钥时拒绝发布，避免用 debug 签名发出“正式版”
+      - name: Verify signing secrets
+        run: |
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ] || [ -z "${{ secrets.KEYSTORE_PASSWORD }}" ]; then
+            echo "::error::缺少签名密钥（KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD），已阻止用 debug 签名发布正式版。"
+            exit 1
+          fi
 
       - name: Decode Keystore
         if: steps.check_version.outputs.changed == 'true'
@@ -186,18 +188,18 @@ jobs:
             find "$APK_DIR" -name "*.apk" -print0 | while IFS= read -r -d '' file; do
               BASENAME=$(basename "$file")
               if [[ "$BASENAME" == *"arm64-v8a"* ]]; then
-                mv "$file" "$DIST_DIR/LocationSp_Next-$SCHEME-arm64-v8a-$TAG.apk"
+                mv "$file" "$DIST_DIR/LocationSpoofer-$SCHEME-arm64-v8a-$TAG.apk"
               elif [[ "$BASENAME" == *"armeabi-v7a"* ]]; then
-                mv "$file" "$DIST_DIR/LocationSp_Next-$SCHEME-armeabi-v7a-$TAG.apk"
+                mv "$file" "$DIST_DIR/LocationSpoofer-$SCHEME-armeabi-v7a-$TAG.apk"
               else
-                mv "$file" "$DIST_DIR/LocationSp_Next-$SCHEME-$TAG.apk"
+                mv "$file" "$DIST_DIR/LocationSpoofer-$SCHEME-$TAG.apk"
               fi
             done
           done
           ls -l "$DIST_DIR"
 
           # 2 个方案 × 2 个 ABI，缺任何一个都不发版，避免发出只有单一方案的残缺 Release
-          APK_COUNT=$(find "$DIST_DIR" -name "LocationSp_Next-*.apk" | wc -l)
+          APK_COUNT=$(find "$DIST_DIR" -name "LocationSpoofer-*.apk" | wc -l)
           if [ "$APK_COUNT" -ne 4 ]; then
             echo "错误：预期 4 个安装包（scoped/global × arm64-v8a/armeabi-v7a），实际 $APK_COUNT 个，终止发版。"
             exit 1
@@ -208,9 +210,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.check_version.outputs.tag }}
-          name: LocationSp_Next ${{ steps.check_version.outputs.tag }}
+          name: LocationSpoofer ${{ steps.check_version.outputs.tag }}
           body_path: changelog.txt
           prerelease: ${{ steps.check_version.outputs.is_prerelease == 'true' }}
-          files: app/build/outputs/apk/dist/LocationSp_Next-*.apk
+          files: app/build/outputs/apk/dist/LocationSpoofer-*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
