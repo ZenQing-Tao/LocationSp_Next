@@ -159,53 +159,41 @@ fun MapTypeDialog(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        MiuixEngineOptionCard(
-                            title = stringResource(R.string.auto_match),
-                            icon = Icons.Rounded.AutoMode,
-                            isSelected = currentMapEngine == MapEngine.AUTO,
-                            onClick = {
-                                onMapEngineSelected(MapEngine.AUTO)
-                                onDismiss()
-                            },
-                            modifier = Modifier.weight(1f)
+                    // 5 个引擎分两行展示，避免单行 5 列过窄导致标题截断。
+                    listOf(
+                        listOf(
+                            Triple(MapEngine.OSM, stringResource(R.string.engine_osm_short), Icons.Rounded.Public),
+                            Triple(MapEngine.AUTO, stringResource(R.string.auto_match), Icons.Rounded.AutoMode)
+                        ),
+                        listOf(
+                            Triple(MapEngine.AMAP, stringResource(R.string.map_engine_amap), Icons.Rounded.Navigation),
+                            Triple(MapEngine.BAIDU, stringResource(R.string.map_engine_baidu), Icons.Rounded.Explore)
+                        ),
+                        listOf(
+                            Triple(MapEngine.GOOGLE, stringResource(R.string.map_engine_google), Icons.Rounded.Language)
                         )
-
-                        MiuixEngineOptionCard(
-                            title = stringResource(R.string.map_engine_amap),
-                            icon = Icons.Rounded.Navigation,
-                            isSelected = currentMapEngine == MapEngine.AMAP,
-                            onClick = {
-                                onMapEngineSelected(MapEngine.AMAP)
-                                onDismiss()
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        MiuixEngineOptionCard(
-                            title = stringResource(R.string.map_engine_baidu),
-                            icon = Icons.Rounded.Explore,
-                            isSelected = currentMapEngine == MapEngine.BAIDU,
-                            onClick = {
-                                onMapEngineSelected(MapEngine.BAIDU)
-                                onDismiss()
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        MiuixEngineOptionCard(
-                            title = stringResource(R.string.map_engine_google),
-                            icon = Icons.Rounded.Public,
-                            isSelected = currentMapEngine == MapEngine.GOOGLE,
-                            onClick = {
-                                onMapEngineSelected(MapEngine.GOOGLE)
-                                onDismiss()
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
+                    ).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            row.forEach { (engine, title, icon) ->
+                                MiuixEngineOptionCard(
+                                    title = title,
+                                    icon = icon,
+                                    isSelected = currentMapEngine == engine,
+                                    onClick = {
+                                        onMapEngineSelected(engine)
+                                        onDismiss()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (row.size == 1) {
+                                Spacer(Modifier.weight(1f))
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
 

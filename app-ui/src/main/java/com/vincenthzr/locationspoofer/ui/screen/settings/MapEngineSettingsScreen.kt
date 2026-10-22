@@ -176,38 +176,55 @@ fun MapEngineSettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                         Spacer(Modifier.height(6.dp))
-                        Row(
+                        // 必须是 Column：之前写成 Row 会把第 2、3 行引擎按钮挤到屏幕外，
+                        // 表现就是设置页只剩「OSM / 自动」两个按钮，也选不到需要 Key 的引擎。
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            // OSM 放在首位：它无需任何 Key，是「下载即用」的默认底图。
+                            // 5 个选项按每行 2 个排列，避免单行过挤导致文字截断。
                             val engines = listOf(
+                                MapEngine.OSM to stringResource(R.string.engine_osm_short),
                                 MapEngine.AUTO to stringResource(R.string.engine_auto_short),
                                 MapEngine.AMAP to stringResource(R.string.engine_amap_short),
                                 MapEngine.BAIDU to stringResource(R.string.engine_baidu_short),
                                 MapEngine.GOOGLE to stringResource(R.string.engine_google_short)
                             )
-                            engines.forEach { (engine, label) ->
-                                val isSelected = uiState.mapEngine == engine
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            if (isSelected) AccentBlue
-                                            else if (isDark) Color.White.copy(alpha = 0.05f)
-                                            else Color.Black.copy(alpha = 0.04f)
-                                        )
-                                        .noRippleClickable { viewModel.setMapEngine(engine) }
-                                        .padding(vertical = 9.dp),
-                                    contentAlignment = Alignment.Center
+                            engines.chunked(2).forEach { rowEngines ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = label,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
+                                    rowEngines.forEach { (engine, label) ->
+                                        val isSelected = uiState.mapEngine == engine
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(
+                                                    if (isSelected) AccentBlue
+                                                    else if (isDark) Color.White.copy(alpha = 0.05f)
+                                                    else Color.Black.copy(alpha = 0.04f)
+                                                )
+                                                .noRippleClickable { viewModel.setMapEngine(engine) }
+                                                .padding(vertical = 9.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+                                    // 奇数个时补一个占位，保持最后一行两项等宽
+                                    if (rowEngines.size == 1) {
+                                        Box(modifier = Modifier.weight(1f))
+                                    }
                                 }
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
 

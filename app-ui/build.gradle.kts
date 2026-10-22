@@ -96,6 +96,8 @@ dependencies {
     implementation(libs.baidu.map)
     implementation(libs.baidu.location)
     implementation(libs.baidu.search)
+    // OSM（MapLibre）引擎：无需任何 Key，保证默认链路开箱可用
+    implementation(libs.maplibre.sdk)
     implementation(libs.google.maps)
     implementation(libs.google.places)
     implementation(libs.kotlinx.serialization.json)

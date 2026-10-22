@@ -21,6 +21,12 @@ on:
 
 permissions:
   contents: write
+  checks: write
+  pull-requests: write
+  issues: write
+
+# 产物命名：LocationSp_Next-{scheme}-{abi}.apk
+# 因为开了 ABI 拆分 + scoped/global 两个变体，一次构建最多产出 4 个 APK，后缀不能省。
 
 jobs:
   build:
@@ -28,6 +34,11 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # 合规自检：仓库内不得出现任何第三方地图 Key / 他人样式 ID。
+      # 放在最前面，一旦有人误提交 Key 立刻失败，不会产出带凭证的安装包。
+      - name: Verify no third-party keys
+        run: bash scripts/verify-no-keys.sh
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -66,27 +77,41 @@ jobs:
           # compileSdk 37 可能尚未发布（项目用AGP 9.3.1，compileSdk = 37）。
           # 这里自适应：优先装37，不存在就退回 runner 上已装的最高版本平台，
           # 并用 compileSdkVersion 覆盖，让构建至少有机会跑起来。
-          if "$SDKMANAGER" --list 2>/dev/null | grep -qE '^\s*platforms;android-37\s*$'; then
-            echo ">>> 安装 platforms;android-37"
-            "$SDKMANAGER" --install "platforms;android-37"
-            echo "COMPILE_SDK=37" >> "$GITHUB_OUTPUT"
-          else
-            echo ">>> platforms;android-37 尚未发布，回退到已安装的最高平台"
-            "$SDKMANAGER" --list 2>/dev/null | sed -n 's/^[[:space:]]*platforms;android-\([0-9][0-9]*\).*/\1/p' | sort -n | tail -n1 > api.txt || true
-            API="$(cat api.txt 2>/dev/null | tr -dc '0-9')"
-            if [ -n "$API" ]; then
-              echo ">>> 安装 platforms;android-$API"
-              "$SDKMANAGER" --install "platforms;android-$API"
-              echo "COMPILE_SDK=$API" >> "$GITHUB_OUTPUT"
-            else
-              echo "无法确定可用平台版本"
-              echo "COMPILE_SDK=36" >> "$GITHUB_OUTPUT"
+          #
+          # 关键：sdkmanager --list 里 platforms;android-37 这样的「纯大版本」条目
+          # 通常并不存在，实际存在的是带小版本号的条目（android-37.0 / 37.1 / 37.2-betaN）。
+          # 因此这里直接列出 --list 中真实存在的 platforms 条目，按「去掉 beta 后数值最大」
+          # 排序取第一个去安装；只有取不到时才逐个大版本号降级尝试。
+          PLATFORM=""
+          CANDIDATES="$("$SDKMANAGER" --list 2>/dev/null \
+                | sed -n 's/^[[:space:]]*platforms;android-\([0-9][0-9.]*\).*/\1/p' \
+                | grep -v -E '(beta|rc|dev)' \
+                | awk -F. '{ printf "%d.%03d\n", $1, $2 }' \
+                | sort -rn | head -n1)"
+          if [ -n "$CANDIDATES" ]; then
+            VER="$(echo "$CANDIDATES" | awk -F. '{ printf "%d.%d", $1, $2 }')"
+            echo ">>> 候选平台: platforms;android-$VER"
+            if "$SDKMANAGER" --install "platforms;android-$VER"; then
+              PLATFORM="$VER"
             fi
           fi
+          # 兜底：按大版本号逐个尝试
+          for CAND in 37 36 35; do
+            [ -n "$PLATFORM" ] && break
+            echo ">>> 尝试 platforms;android-$CAND"
+            "$SDKMANAGER" --install "platforms;android-$CAND" && PLATFORM="$CAND" || true
+          done
+          if [ -z "$PLATFORM" ]; then
+            echo "警告：未能安装任何平台，继续构建让 Gradle 给出明确报错"
+            echo "COMPILE_SDK=36" >> "$GITHUB_OUTPUT"
+          else
+            echo "COMPILE_SDK=$PLATFORM" >> "$GITHUB_OUTPUT"
+          fi
 
+          # build-tools 取最新的稳定版（排除 pre/rc）
           BT="$("$SDKMANAGER" --list 2>/dev/null \
                 | sed -n 's/^[[:space:]]*build-tools;\([0-9][0-9.]*\).*/\1/p' \
-                | sort -V | tail -n1)"
+                | grep -v -E '(rc|beta|pre)' | sort -V | tail -n1)"
           if [ -z "$BT" ]; then
             echo "无法解析可用的 build-tools 版本，改为安装默认最新版本"
             "$SDKMANAGER" --install "build-tools"
@@ -101,14 +126,19 @@ jobs:
         if: ${{ steps.sdk.outputs.COMPILE_SDK != '' }}
         run: |
           SDK="${{ steps.sdk.outputs.COMPILE_SDK }}"
-          echo "本次使用 compileSdk = $SDK"
+          MAJOR="${SDK%%.*}"
+          echo "本次使用 compileSdk = $SDK (major=$MAJOR)"
           printf '\n# 由 CI 按可用 SDK 自动回退\nandroid.suppressUnsupportedCompileSdk=%s\n' "$SDK" >> gradle.properties
-          # 只有在确实回退了（不是 37）时才需要改compileSdk 本身
-          if [ "$SDK" != "37" ]; then
+          # gradle 的 compileSdk 只接受整数（如 37），不能写 37.1。
+          # 只有主版本真的低于 37 时才改写各模块；37.x 保持仓库里的 compileSdk = 37 不动。
+          if [ "$MAJOR" -lt 37 ]; then
             for f in app/build.gradle.kts app-ui/build.gradle.kts core-data/build.gradle.kts core-geo/build.gradle.kts service/build.gradle.kts xposed/build.gradle.kts; do
-              [ -f "$f" ] && sed -i "s/compileSdk = 37/compileSdk = $SDK/g" "$f"
+              [ -f "$f" ] && sed -i "s/compileSdk = 37/compileSdk = $MAJOR/g" "$f"
             done
-            echo "已把各模块 compileSdk 调整为 $SDK"
+            echo "已把各模块 compileSdk 降级为 $MAJOR"
+            echo "::warning::compileSdk 被降级到 $MAJOR，miuix 等依赖要求 37+，构建可能失败"
+          else
+            echo "compileSdk 主版本 >= 37，保持仓库原值 compileSdk = 37"
           fi
 
       - name: Provide Google Maps key
@@ -120,59 +150,125 @@ jobs:
         id: build
         continue-on-error: true
         run: |
-          set -e
           case "${{ inputs.scheme }}" in
             scoped) TASKS=":app:assembleScopedDebug" ;;
             global) TASKS=":app:assembleGlobalDebug" ;;
             both)   TASKS=":app:assembleScopedDebug :app:assembleGlobalDebug" ;;
           esac
           echo "Building: $TASKS"
+          RC=0
           # 与 release.yml 同样的坑：一次调用里并行打包多个变体 × ABI 拆分时，
           # AGP 的签名摘要任务会和打包写文件任务抢占 ForkJoinPool 而互相死锁。
-          # 因此这里按变体逐个调用。
+          # 因此这里按变体逐个调用，并且不要 set -e，否则单个变体失败会直接
+          # 跳过后面的变体，也看不出到底哪个任务出了问题。
           for T in $TASKS; do
-            ./gradlew --no-daemon "$T"
+            echo "---- gradle $T ----"
+            # 全量落盘，便于诊断步骤提取关键错误
+            ./gradlew --no-daemon "$T" 2>&1 | tee -a gradle-build.log || RC=${PIPESTATUS[0]}
           done
+          echo "gradle exit code: $RC"
+          echo "=== build 目录概览 ==="
+          find app/build -maxdepth 2 -type d 2>/dev/null | head -n 30 || true
+          echo "=== 全仓库 *.apk ==="
+          find . -name "*.apk" -type f -not -path "./.git/*" 2>/dev/null | head -n 30 || true
+          exit $RC
 
       - name: Collect APKs
         id: collect
         run: |
           mkdir -p dist
-          for SCHEME in scoped global; do
-            APK_DIR="app/build/outputs/apk/$SCHEME/debug"
-            [ -d "$APK_DIR" ] || continue
-            find "$APK_DIR" -name "*.apk" -print0 | while IFS= read -r -d '' file; do
-              BASENAME=$(basename "$file")
-              if [[ "$BASENAME" == *"arm64-v8a"* ]]; then
-                cp "$file" "dist/LocationSpoofer-$SCHEME-arm64-v8a.apk"
-              elif [[ "$BASENAME" == *"armeabi-v7a"* ]]; then
-                cp "$file" "dist/LocationSpoofer-$SCHEME-armeabi-v7a.apk"
-              else
-                cp "$file" "dist/LocationSpoofer-$SCHEME-universal.apk"
-              fi
-            done
+          # 不写死 APK 输出目录：AGP 9 配合 ABI 拆分时产物路径随版本变化，
+          # 这里从 app/build/outputs 下递归收集，再按文件名里的 scheme/abi 标记重命名。
+          OUT_ROOT="app/build/outputs"
+          if [ ! -d "$OUT_ROOT" ]; then
+            echo "错误：找不到 $OUT_ROOT，构建可能未真正产出任何文件"
+            exit 1
+          fi
+          echo "=== outputs 目录结构 ==="
+          find "$OUT_ROOT" -maxdepth 3 -type d | head -n 40
+          echo "=== 原始 APK 列表 ==="
+          find "$OUT_ROOT" -name "*.apk" -type f | head -n 40
+
+          find "$OUT_ROOT" -name "*.apk" -type f -print0 | while IFS= read -r -d '' file; do
+            BASENAME=$(basename "$file")
+            SCHEME="scoped"
+            [[ "$BASENAME" == *"-global"* ]] && SCHEME="global"
+            if [[ "$BASENAME" == *"arm64-v8a"* ]]; then
+              ABI="arm64-v8a"
+            elif [[ "$BASENAME" == *"armeabi-v7a"* ]]; then
+              ABI="armeabi-v7a"
+            else
+              ABI="universal"
+            fi
+            cp "$file" "dist/LocationSp_Next-$SCHEME-$ABI.apk"
           done
           ls -l dist/ || true
           COUNT=$(find dist -name "*.apk" 2>/dev/null | wc -l)
           echo "APK_COUNT=$COUNT" >> "$GITHUB_OUTPUT"
           echo "共产出 $COUNT 个安装包"
 
+      # 把 Gradle 日志作为 artifact 上传：run summary 与网页日志都需要登录后才能看，
+      # 而 artifact 下载接口是公开的，便于外部直接取到真实报错。
+      - name: Upload build log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: |
+            gradle-build.log
+            app/build/outputs/
+          if-no-files-found: warn
+          retention-days: 7
+
       # 失败时把关键信息汇总到 run summary，避免在几百行日志里翻找。
+      # annotation 会出现在 check-runs 的 annotations 接口里，便于外部直接读取
+      # （run summary 只有登录后在网页上才看得到，日志下载接口需要更高权限）。
       - name: Report diagnostics
-        if: ${{ steps.build.outcome == 'failure' || steps.sdk.outcome == 'failure' || steps.collect.outputs.APK_COUNT == '0' }}
+        if: ${{ always() }}
         run: |
+          set +e
+          LOGS=""
+          if [ -f gradle-build.log ]; then
+            LOGS=$(grep -nE "FAILURE:|What went wrong|^e: |error:|Caused by:|Execution failed|Could not (find|resolve|compile|download)|A problem occurred" gradle-build.log | head -n 25)
+          fi
+          PLATFORMS=$(ls "$ANDROID_HOME/platforms" 2>&1 | tr '\n' ' ')
+          APKS=$(find . -name "*.apk" -type f -not -path "./.git/*" 2>/dev/null | head -n 10 | tr '\n' ' ')
+          COMPILE_SDK_USED="${{ steps.sdk.outputs.COMPILE_SDK }}"
+          BUILD_OUTCOME="${{ steps.build.outcome }}"
+
+          # 写成真正的 workflow annotation（会出现在 check-runs annotations 接口）
           {
-            echo "## ❌ 构建失败"
+            echo "::error title=构建诊断::compileSdk=${COMPILE_SDK_USED:-未设置} build=${BUILD_OUTCOME} platforms=[${PLATFORMS}] apks=[${APKS}]"
+          }
+          # Gradle 关键错误逐行发成 annotation，确保外部能读到
+          if [ -n "$LOGS" ]; then
+            echo "$LOGS" | head -n 12 | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error title=Gradle::${line:0:200}"
+            done
+          fi
+          if [ ! -f gradle-build.log ]; then
+            echo "::error title=Gradle::gradle-build.log 不存在，gradlew 未执行"
+          fi
+
+          {
+            echo "## 构建诊断"
             echo ""
-            echo "- SDK 步骤: ${{ steps.sdk.outcome }}"
-            echo "- 编译步骤: ${{ steps.build.outcome }}"
-            echo "- 使用的 compileSdk: \`${{ steps.sdk.outputs.COMPILE_SDK || '未设置' }}\`"
+            echo "- 编译步骤: \`${BUILD_OUTCOME}\`"
+            echo "- 采用的 compileSdk: \`${COMPILE_SDK_USED:-未设置}\`"
             echo ""
-            echo "### 环境"
+            echo "### 已安装的平台"
             echo '```'
-            java -version 2>&1 | head -n3
-            echo "ANDROID_HOME=${ANDROID_HOME:-未设置}"
-            ls "${ANDROID_HOME:-/nonexistent}/platforms" 2>&1 || true
+            echo "${PLATFORMS:-无}"
+            echo '```'
+            echo ""
+            echo "### 全仓库 *.apk"
+            echo '```'
+            echo "${APKS:-无}"
+            echo '```'
+            echo ""
+            echo "### Gradle 关键错误"
+            echo '```'
+            echo "${LOGS:-未匹配到FAILURE/ error 行}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

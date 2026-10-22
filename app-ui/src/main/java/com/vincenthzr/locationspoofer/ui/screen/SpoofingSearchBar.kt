@@ -74,6 +74,7 @@ import com.vincenthzr.locationspoofer.ui.components.AppMapView
 import com.vincenthzr.locationspoofer.ui.components.AppMapController
 import com.vincenthzr.locationspoofer.data.model.AppMapType
 import com.vincenthzr.locationspoofer.ui.components.MapTypeDialog
+import com.vincenthzr.locationspoofer.ui.components.map.wgs84ToGcj02
 import androidx.compose.material.icons.rounded.Layers
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -205,6 +206,122 @@ fun HomeSearchBar(
 
 private var cachedPlacesClient: com.google.android.libraries.places.api.net.PlacesClient? = null
 
+// ---- OSM / Nominatim 搜索 ----
+// Nominatim 使用政策要求：必须带可识别的 User-Agent，且调用频率 ≤ 1 req/s。
+// 这里用进程内时间戳做节流，宁可稍等也不要打爆公共实例。
+
+private const val NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/search"
+private const val NOMINATIM_USER_AGENT =
+    "LocationSpoofer/3.1 (Android; +https://github.com/ZenQing-Tao/LocationSpoofer)"
+private const val NOMINATIM_MIN_INTERVAL_MS = 1100L
+
+private val nominatimThrottleLock = Any()
+private var lastNominatimRequestAt: Long = 0L
+
+private val nominatimClient: okhttp3.OkHttpClient by lazy {
+    okhttp3.OkHttpClient.Builder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+}
+
+private fun searchNominatim(
+    context: Context,
+    keyword: String,
+    onResult: (List<AppPoiItem>) -> Unit
+) {
+    val q = keyword.trim()
+    if (q.isEmpty()) {
+        onResult(emptyList())
+        return
+    }
+
+    // 节流：确保与上一次请求间隔 ≥ NOMINATIM_MIN_INTERVAL_MS
+    val waitMs = synchronized(nominatimThrottleLock) {
+        val elapsed = System.currentTimeMillis() - lastNominatimRequestAt
+        if (lastNominatimRequestAt != 0L && elapsed < NOMINATIM_MIN_INTERVAL_MS) {
+            NOMINATIM_MIN_INTERVAL_MS - elapsed
+        } else {
+            0L
+        }
+    }
+
+    Thread {
+        if (waitMs > 0) {
+            try {
+                Thread.sleep(waitMs)
+            } catch (_: InterruptedException) {
+            }
+        }
+        synchronized(nominatimThrottleLock) {
+            lastNominatimRequestAt = System.currentTimeMillis()
+        }
+
+        val url = java.net.URL(
+            java.net.URLEncoder.encode(q, "UTF-8").let { enc ->
+                "$NOMINATIM_ENDPOINT?q=$enc&format=jsonv2&limit=10&addressdetails=0"
+            }
+        ).toString()
+
+        var ok = false
+        var message = ""
+        try {
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                // Nominatim 政策：必须提供能联系到使用者的 User-Agent
+                .header("User-Agent", NOMINATIM_USER_AGENT)
+                .header("Accept", "application/json")
+                .build()
+
+            nominatimClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    // 429 = 触发限流；其余按网络/服务异常处理
+                    message = if (response.code == 429) "RATE_LIMITED" else "HTTP_${response.code}"
+                    return@use
+                }
+                val body = response.body?.string().orEmpty()
+                val arr = org.json.JSONArray(body)
+                val items = ArrayList<AppPoiItem>(arr.length())
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    val latStr = obj.optString("lat")
+                    val lonStr = obj.optString("lon")
+                    if (latStr.isEmpty() || lonStr.isEmpty()) continue
+                    val lat = latStr.toDoubleOrNull() ?: continue
+                    val lon = lonStr.toDoubleOrNull() ?: continue
+                    // Nominatim 返回 WGS-84；上层统一使用 GCJ-02，必须转换
+                    val gcj = wgs84ToGcj02(lat, lon)
+                    items.add(
+                        AppPoiItem(
+                            title = obj.optString("display_name").substringBefore(",").ifBlank { q },
+                            snippet = obj.optString("display_name"),
+                            lat = gcj.first,
+                            lng = gcj.second
+                        )
+                    )
+                }
+                ok = true
+                onResult(items)
+            }
+        } catch (e: Exception) {
+            message = e.message ?: e.javaClass.simpleName
+        }
+
+        if (!ok) {
+            val text = when {
+                message == "RATE_LIMITED" ->
+                    context.getString(R.string.osm_search_rate_limited)
+                else ->
+                    context.getString(R.string.osm_search_failed_format, message)
+            }
+            context.mainExecutor.execute {
+                Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+            }
+            onResult(emptyList())
+        }
+    }.start()
+}
+
 fun performPoiSearch(
     context: Context,
     mapEngine: MapEngine,
@@ -212,6 +329,10 @@ fun performPoiSearch(
     isDomestic: Boolean = true,
     onResult: (List<AppPoiItem>) -> Unit
 ) {
+    if (mapEngine == MapEngine.OSM) {
+        searchNominatim(context, keyword, onResult)
+        return
+    }
     if (mapEngine == MapEngine.BAIDU) {
         try {
             val mPoiSearch = com.baidu.mapapi.search.poi.PoiSearch.newInstance()

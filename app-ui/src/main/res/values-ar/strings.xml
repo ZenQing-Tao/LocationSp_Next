@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <resources>
-    <string name="app_name">LocationSpoofer</string>
+    <string name="app_name">LocationSp_Next</string>
     <string name="map_type_label">نوع الخريطة</string>
     <string name="map_type_standard">خريطة قياسية</string>
     <string name="map_type_satellite">خريطة القمر الصناعي</string>
@@ -289,6 +289,11 @@
     <string name="map_engine_and_keys">اختيار محرك الخرائط ومفاتيح API المخصصة</string>
     <string name="current_engine">المحرك الحالي</string>
     <string name="engine_auto_short">تلقائي</string>
+    <string name="engine_osm_short">OSM</string>
+    <string name="engine_osm_desc">خريطة OpenStreetMap، لا تتطلب أي مفتاح API. البيانات © OpenStreetMap contributors</string>
+    <string name="osm_attribution">© OpenStreetMap contributors</string>
+    <string name="osm_search_failed_format">فشل البحث في OpenStreetMap: %1$s</string>
+    <string name="osm_search_rate_limited">طلبات OpenStreetMap كثيرة جدًا. يرجى المحاولة لاحقًا (تم تحديد المعدل إلى طلب واحد/ثانية)</string>
     <string name="engine_amap_short">Amap</string>
     <string name="engine_baidu_short">Baidu</string>
     <string name="engine_google_short">Google</string>

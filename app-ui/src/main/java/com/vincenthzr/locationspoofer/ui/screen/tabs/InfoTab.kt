@@ -120,12 +120,14 @@ fun InfoTab(
 
     // 获取当前地图引擎名称
     val autoText = stringResource(R.string.map_engine_auto)
+    val osmText = stringResource(R.string.engine_osm_short)
     val amapText = stringResource(R.string.map_engine_amap)
     val baiduText = stringResource(R.string.map_engine_baidu)
     val googleText = stringResource(R.string.map_engine_google)
-    val currentEngineName = remember(uiState.mapEngine, autoText, amapText, baiduText, googleText) {
+    val currentEngineName = remember(uiState.mapEngine, autoText, osmText, amapText, baiduText, googleText) {
         when (uiState.mapEngine) {
             MapEngine.AUTO -> autoText
+            MapEngine.OSM -> osmText
             MapEngine.AMAP -> amapText
             MapEngine.BAIDU -> baiduText
             MapEngine.GOOGLE -> googleText
