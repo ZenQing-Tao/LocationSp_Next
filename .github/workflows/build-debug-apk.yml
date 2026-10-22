@@ -21,6 +21,9 @@ on:
 
 permissions:
   contents: write
+  checks: write
+  pull-requests: write
+  issues: write
 
 jobs:
   build:
@@ -187,40 +190,46 @@ jobs:
           echo "APK_COUNT=$COUNT" >> "$GITHUB_OUTPUT"
           echo "共产出 $COUNT 个安装包"
 
-      # 无论成败都把关键信息写进 run summary，避免在几百行日志里翻找。
+      # 无论成败都把关键信息写进 run summary，并额外发成 workflow annotation。
+      # annotation 会出现在 check-runs 的 annotations 接口里，便于外部直接读取
+      # （run summary 只有登录后在网页上才看得到，日志下载接口需要更高权限）。
       - name: Report diagnostics
         if: ${{ always() }}
         run: |
+          set +e
+          LOGS=""
+          if [ -f gradle-build.log ]; then
+            LOGS=$(grep -nE "FAILURE:|What went wrong|^e: |error:|Caused by:|Execution failed|Could not (find|resolve|compile|download)|A problem occurred" gradle-build.log | head -n 25)
+          fi
+          PLATFORMS=$(ls "$ANDROID_HOME/platforms" 2>&1 | tr '\n' ' ')
+          APKS=$(find . -name "*.apk" -type f -not -path "./.git/*" 2>/dev/null | head -n 10 | tr '\n' ' ')
+          COMPILE_SDK_USED="${{ steps.sdk.outputs.COMPILE_SDK }}"
+          BUILD_OUTCOME="${{ steps.build.outcome }}"
+
+          # 写成 annotation（标题即summary，消息即详情）
+          {
+            echo "::error title=构建诊断::compileSdk=${COMPILE_SDK_USED:-未设置}; build=${BUILD_OUTCOME}; platforms=[${PLATFORMS}]; apks=[${APKS}]"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           {
             echo "## 构建诊断"
             echo ""
-            echo "- SDK 步骤: ${{ steps.sdk.outcome }}"
-            echo "- 编译步骤: ${{ steps.build.outcome }}"
-            echo "- 采用的 compileSdk: \`${{ steps.sdk.outputs.COMPILE_SDK || '未设置' }}\`"
-            echo "- 收集到的 APK 数: \`${{ steps.collect.outputs.APK_COUNT || 'n/a' }}\`"
+            echo "- 编译步骤: \`${BUILD_OUTCOME}\`"
+            echo "- 采用的 compileSdk: \`${COMPILE_SDK_USED:-未设置}\`"
             echo ""
             echo "### 已安装的平台"
             echo '```'
-            ls "$ANDROID_HOME/platforms" 2>&1 || echo "(无)"
-            echo '```'
-            echo ""
-            echo "### build 目录（app/build 下两层）"
-            echo '```'
-            find app/build -maxdepth 2 -type d 2>&1 | head -n 40 || echo "(无)"
+            echo "${PLATFORMS:-无}"
             echo '```'
             echo ""
             echo "### 全仓库 *.apk"
             echo '```'
-            find . -name "*.apk" -type f -not -path "./.git/*" 2>&1 | head -n 20 || echo "(无)"
+            echo "${APKS:-无}"
             echo '```'
             echo ""
             echo "### Gradle 关键错误"
             echo '```'
-            if [ -f gradle-build.log ]; then
-              grep -nE "FAILURE:|What went wrong|^e: |error:|Caused by:|Execution failed|Could not (find|resolve|compile)" gradle-build.log | head -n 40 || echo "(未匹配到)"
-            else
-              echo "(gradle-build.log 不存在，说明 gradlew 根本没执行到写日志这一步)"
-            fi
+            echo "${LOGS:-未匹配到FAILURE/ error 行}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
