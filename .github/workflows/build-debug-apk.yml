@@ -74,26 +74,35 @@ jobs:
           # compileSdk 37 可能尚未发布（项目用AGP 9.3.1，compileSdk = 37）。
           # 这里自适应：优先装37，不存在就退回 runner 上已装的最高版本平台，
           # 并用 compileSdkVersion 覆盖，让构建至少有机会跑起来。
-          # 注意：--list 里同时存在 android-37.0 / 37.1 / 37.2-betaN 等条目，
-          # 取最大值会误选到 beta 或不存在的小版本号，导致 sdkmanager 装不上。
-          # 这里只认「稳定的大版本」（纯数字），再逐个降级尝试。
-          API=""
-          for CAND in 37 36 35; do
-            if "$SDKMANAGER" --list 2>/dev/null \
-                 | grep -qE "^[[:space:]]*platforms;android-${CAND}[[:space:]]*$"; then
-              echo ">>> 安装 platforms;android-$CAND"
-              if "$SDKMANAGER" --install "platforms;android-$CAND"; then
-                API="$CAND"
-                break
-              fi
-              echo ">>> platforms;android-$CAND 安装失败，尝试更低版本"
+          #
+          # 关键：sdkmanager --list 里 platforms;android-37 这样的「纯大版本」条目
+          # 通常并不存在，实际存在的是带小版本号的条目（android-37.0 / 37.1 / 37.2-betaN）。
+          # 因此这里直接列出 --list 中真实存在的 platforms 条目，按「去掉 beta 后数值最大」
+          # 排序取第一个去安装；只有取不到时才逐个大版本号降级尝试。
+          PLATFORM=""
+          CANDIDATES="$("$SDKMANAGER" --list 2>/dev/null \
+                | sed -n 's/^[[:space:]]*platforms;android-\([0-9][0-9.]*\).*/\1/p' \
+                | grep -v -E '(beta|rc|dev)' \
+                | awk -F. '{ printf "%d.%03d\n", $1, $2 }' \
+                | sort -rn | head -n1)"
+          if [ -n "$CANDIDATES" ]; then
+            VER="$(echo "$CANDIDATES" | awk -F. '{ printf "%d.%d", $1, $2 }')"
+            echo ">>> 候选平台: platforms;android-$VER"
+            if "$SDKMANAGER" --install "platforms;android-$VER"; then
+              PLATFORM="$VER"
             fi
+          fi
+          # 兜底：按大版本号逐个尝试
+          for CAND in 37 36 35; do
+            [ -n "$PLATFORM" ] && break
+            echo ">>> 尝试 platforms;android-$CAND"
+            "$SDKMANAGER" --install "platforms;android-$CAND" && PLATFORM="$CAND" || true
           done
-          if [ -z "$API" ]; then
-            echo "警告：未能安装任何稳定平台，继续尝试构建（Gradle 会给出明确报错）"
+          if [ -z "$PLATFORM" ]; then
+            echo "警告：未能安装任何平台，继续构建让 Gradle 给出明确报错"
             echo "COMPILE_SDK=36" >> "$GITHUB_OUTPUT"
           else
-            echo "COMPILE_SDK=$API" >> "$GITHUB_OUTPUT"
+            echo "COMPILE_SDK=$PLATFORM" >> "$GITHUB_OUTPUT"
           fi
 
           # build-tools 取最新的稳定版（排除 pre/rc）
@@ -114,14 +123,19 @@ jobs:
         if: ${{ steps.sdk.outputs.COMPILE_SDK != '' }}
         run: |
           SDK="${{ steps.sdk.outputs.COMPILE_SDK }}"
-          echo "本次使用 compileSdk = $SDK"
+          MAJOR="${SDK%%.*}"
+          echo "本次使用 compileSdk = $SDK (major=$MAJOR)"
           printf '\n# 由 CI 按可用 SDK 自动回退\nandroid.suppressUnsupportedCompileSdk=%s\n' "$SDK" >> gradle.properties
-          # 只有在确实回退了（不是 37）时才需要改compileSdk 本身
-          if [ "$SDK" != "37" ]; then
+          # gradle 的 compileSdk 只接受整数（如 37），不能写 37.1。
+          # 只有主版本真的低于 37 时才改写各模块；37.x 保持仓库里的 compileSdk = 37 不动。
+          if [ "$MAJOR" -lt 37 ]; then
             for f in app/build.gradle.kts app-ui/build.gradle.kts core-data/build.gradle.kts core-geo/build.gradle.kts service/build.gradle.kts xposed/build.gradle.kts; do
-              [ -f "$f" ] && sed -i "s/compileSdk = 37/compileSdk = $SDK/g" "$f"
+              [ -f "$f" ] && sed -i "s/compileSdk = 37/compileSdk = $MAJOR/g" "$f"
             done
-            echo "已把各模块 compileSdk 调整为 $SDK"
+            echo "已把各模块 compileSdk 降级为 $MAJOR"
+            echo "::warning::compileSdk 被降级到 $MAJOR，miuix 等依赖要求 37+，构建可能失败"
+          else
+            echo "compileSdk 主版本 >= 37，保持仓库原值 compileSdk = 37"
           fi
 
       - name: Provide Google Maps key
