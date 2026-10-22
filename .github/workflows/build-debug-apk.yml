@@ -29,6 +29,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 合规自检：仓库内不得出现任何第三方地图 Key / 他人样式 ID。
+      # 放在最前面，一旦有人误提交 Key 立刻失败，不会产出带凭证的安装包。
+      - name: Verify no third-party keys
+        run: bash scripts/verify-no-keys.sh
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
