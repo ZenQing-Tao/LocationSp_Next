@@ -285,20 +285,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: debug-build-${{ github.run_number }}
-          name: Debug 构建 ${{ github.run_number }}
+          name: LocationSp_Next Debug 构建 ${{ github.run_number }}
+          # 预发布：在 Releases 页面会标记为 Pre-release，不会被当成正式版本
+          prerelease: true
           body: |
+            ⚠️ **预发布构建（Pre-release），仅供测试，不是正式版本。**
             由 `build-debug-apk.yml` 手动触发产出，使用 **debug 签名**。
 
-            - 直接安装即可，无需额外配置
-            - 与正式签名的 release 版本签名不同，**不能覆盖安装**，需先卸载旧版
+            - 安装前请**先卸载旧版本**：debug 签名每次可能不同，无法覆盖安装；卸载会清除本地数据
             - 包名 `com.vincenthzr.locationspoofer`
-            - `scoped`：在 LSPosed 作用域里勾选目标 App
-            - `global`：Hook 系统服务，对全设备生效
+            - 默认底图 OSM（无需 Key）；高德 / 百度 / Google 需在「设置 → 地图配置」填入你自己的 Key
+            - `scoped`：在 LSPosed 作用域里勾选目标 App；`global`：Hook 系统服务，对全设备生效
 
-            **重要**：本项目源码不包含任何登录/订阅逻辑，装上后直接用。
-            地图与第三方数据源请在「设置」里填自己的 Key：
-            - 高德 / 百度 / Google → 设置 → 地图引擎与密钥
-            - WiGLE / OpenCellID → 设置 → 环境数据源 Token
+            **源码**：${{ github.server_url }}/${{ github.repository }}/tree/debug-build-${{ github.run_number }}
+
+            **免责声明**：本项目仅供学习、研究与自有设备/授权环境测试，严禁用于虚假考勤、
+            伪造运动或出行记录、欺诈、未经授权干预第三方系统，或任何违法违规用途。
+            详见仓库 README 的「免责声明与使用限制」。
           files: dist/*.apk
           fail_on_unmatched_files: true
         env:
