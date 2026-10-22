@@ -25,6 +25,9 @@ permissions:
   pull-requests: write
   issues: write
 
+# 产物命名：LocationSp_Next-{scheme}-{abi}.apk
+# 因为开了 ABI 拆分 + scoped/global 两个变体，一次构建最多产出 4 个 APK，后缀不能省。
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -197,7 +200,7 @@ jobs:
             else
               ABI="universal"
             fi
-            cp "$file" "dist/LocationSpoofer_Next-$SCHEME-$ABI.apk"
+            cp "$file" "dist/LocationSp_Next-$SCHEME-$ABI.apk"
           done
           ls -l dist/ || true
           COUNT=$(find dist -name "*.apk" 2>/dev/null | wc -l)
