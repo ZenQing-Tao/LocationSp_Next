@@ -424,6 +424,11 @@
     <string name="map_engine_and_keys">选择地图渲染引擎及自定义 Key</string>
     <string name="current_engine">当前引擎</string>
     <string name="engine_auto_short">自动</string>
+    <string name="engine_osm_short">OSM</string>
+    <string name="engine_osm_desc">OpenStreetMap 底图，无需任何 Key，开箱即用。数据 © OpenStreetMap contributors</string>
+    <string name="osm_attribution">© OpenStreetMap contributors</string>
+    <string name="osm_search_failed_format">OpenStreetMap 搜索失败：%1$s</string>
+    <string name="osm_search_rate_limited">OpenStreetMap 搜索请求过于频繁，请稍后再试（已按 1 次/秒 限流）</string>
     <string name="engine_amap_short">高德</string>
     <string name="engine_baidu_short">百度</string>
     <string name="engine_google_short">谷歌</string>

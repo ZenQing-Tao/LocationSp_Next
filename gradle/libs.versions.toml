@@ -21,6 +21,7 @@ room = "2.8.4"
 kotlinxSerializationJson = "1.11.0"
 kotlinMetadata = "2.4.0"
 miuix = "0.9.3"
+maplibre = "13.6.1"
 ksp = "2.1.10-1.0.30"
 junit = "4.13.2"
 orgJson = "20231013"
@@ -33,6 +34,10 @@ amap-search = { module = "com.amap.api:search", version.ref = "amapSearch" }
 baidu-map = { module = "com.baidu.lbsyun:BaiduMapSDK_Map", version.ref = "baiduMap" }
 baidu-location = { module = "com.baidu.lbsyun:BaiduMapSDK_Location", version.ref = "baiduLocation" }
 baidu-search = { module = "com.baidu.lbsyun:BaiduMapSDK_Search", version.ref = "baiduMap" }
+# OSM 引擎（MapLibre）。
+# 13.x 起 `android-sdk` 默认使用 Vulkan 渲染后端，部分国产 ROM / 定制内核设备不支持，
+# 因此改用 OpenGL ES 版本（-opengl），兼容性最好；渲染效果与 API 完全一致。
+maplibre-sdk = { group = "org.maplibre.gl", name = "android-sdk-opengl", version.ref = "maplibre" }
 xposed-api = { group = "io.github.libxposed", name = "api", version.ref = "libxposed" }
 xposed-service = { group = "io.github.libxposed", name = "service", version.ref = "libxposedService" }
 google-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "googleMaps" }

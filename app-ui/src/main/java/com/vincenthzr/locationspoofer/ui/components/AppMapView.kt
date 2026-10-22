@@ -10,6 +10,7 @@ import com.vincenthzr.locationspoofer.data.model.MapEngine
 import com.vincenthzr.locationspoofer.ui.components.map.AMapViewContainer
 import com.vincenthzr.locationspoofer.ui.components.map.BaiduMapViewContainer
 import com.vincenthzr.locationspoofer.ui.components.map.GoogleMapViewContainer
+import com.vincenthzr.locationspoofer.ui.components.map.OsmMapViewContainer
 
 interface AppMapMarker {
     fun setPosition(lat: Double, lng: Double)
@@ -74,13 +75,26 @@ fun AppMapView(
         mapController?.setDarkMode(isDark, context)
     }
 
-    val activeEngine = if (mapEngine == MapEngine.AUTO) {
-        MapEngine.AMAP
-    } else {
-        mapEngine
+    // AUTO：用户自备了高德 Key 就沿用高德（保留原有体验），否则回退到无需 Key 的 OSM。
+    // 这样全新安装、无任何 Key 时也能直接出图。
+    val activeEngine = when {
+        mapEngine != MapEngine.AUTO -> mapEngine
+        amapKeyAvailable(context) -> MapEngine.AMAP
+        else -> MapEngine.OSM
     }
 
     when (activeEngine) {
+        MapEngine.OSM -> {
+            OsmMapViewContainer(
+                context = context,
+                lifecycleOwner = lifecycleOwner,
+                isDark = isDark,
+                modifier = modifier,
+                onMapReady = onMapReady,
+                onControllerCreated = { mapController = it }
+            )
+        }
+
         MapEngine.BAIDU -> {
             BaiduMapViewContainer(
                 context = context,
@@ -114,4 +128,30 @@ fun AppMapView(
             )
         }
     }
+}
+
+/**
+ * 是否具备可用的高德 Key。
+ *
+ * 两个来源任一非空即视为可用：
+ * 1. manifest 中的 `com.amap.api.v2.apikey`（构建期由 local.yml / 环境变量注入的占位符最终值）；
+ * 2. App 内设置页写入的 `app_settings` → `amap_api_key`（运行时覆盖）。
+ *
+ * app-ui 是 library 模块，拿不到 :app 的 BuildConfig，因此直接读 meta-data 最稳。
+ */
+private fun amapKeyAvailable(context: android.content.Context): Boolean {
+    val fromManifest = runCatching {
+        val appInfo = context.packageManager.getApplicationInfo(
+            context.packageName,
+            android.content.pm.PackageManager.GET_META_DATA
+        )
+        appInfo.metaData?.getString("com.amap.api.v2.apikey")?.trim()
+    }.getOrNull()
+    if (!fromManifest.isNullOrEmpty()) return true
+
+    val fromPrefs = runCatching {
+        context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+            .getString("amap_api_key", "")?.trim()
+    }.getOrNull()
+    return !fromPrefs.isNullOrEmpty()
 }
