@@ -176,12 +176,14 @@ fun MapEngineSettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                         Spacer(Modifier.height(6.dp))
-                        Row(
+                        // 必须是 Column：之前写成 Row 会把第 2、3 行引擎按钮挤到屏幕外，
+                        // 表现就是设置页只剩「OSM / 自动」两个按钮，也选不到需要 Key 的引擎。
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             // OSM 放在首位：它无需任何 Key，是「下载即用」的默认底图。
-                            // 5 个选项改为两行排列，避免单行过挤导致文字截断。
+                            // 5 个选项按每行 2 个排列，避免单行过挤导致文字截断。
                             val engines = listOf(
                                 MapEngine.OSM to stringResource(R.string.engine_osm_short),
                                 MapEngine.AUTO to stringResource(R.string.engine_auto_short),
