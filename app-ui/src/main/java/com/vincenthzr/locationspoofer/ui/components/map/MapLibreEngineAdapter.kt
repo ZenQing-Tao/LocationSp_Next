@@ -236,7 +236,6 @@ class MapLibreControllerImpl(
             MarkerOptions()
                 .position(LatLng(wgs.first, wgs.second))
                 .icon(IconFactory.getInstance(context).fromBitmap(bitmap))
-                .anchor(0.5f, 1.0f)
                 .title(spec.title)
         )
     }
@@ -257,7 +256,8 @@ class MapLibreControllerImpl(
         val wgs = gcj02ToWgs84(lat, lng)
         val target = LatLng(wgs.first, wgs.second)
         if (zoom != null) {
-            map.animateCamera(CameraUpdateFactory.newLatLngZoom(target, zoom))
+            // MapLibre 的 newLatLngZoom 第二参数是 double，而 AppMapController 用 Float，必须显式转换
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(target, zoom.toDouble()))
         } else {
             map.animateCamera(CameraUpdateFactory.newLatLng(target))
         }
@@ -267,7 +267,7 @@ class MapLibreControllerImpl(
         val wgs = gcj02ToWgs84(lat, lng)
         val target = LatLng(wgs.first, wgs.second)
         if (zoom != null) {
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(target, zoom))
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(target, zoom.toDouble()))
         } else {
             map.moveCamera(CameraUpdateFactory.newLatLng(target))
         }
