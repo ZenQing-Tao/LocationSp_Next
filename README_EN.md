@@ -1,10 +1,11 @@
 # LocationSp_Next
 
 > **Unofficial fork.**
-> This project is derived from **LocationSpoofer** by **SuseOAA** (GitHub [@HuangZhuoRui](https://github.com/HuangZhuoRui)).
+> This project is derived from **LocationSpoofer**, whose repository is maintained by GitHub user [@HuangZhuoRui](https://github.com/HuangZhuoRui);
+> the copyright holder named in the upstream `LICENSE` is **SuseOAA** (kept verbatim here; no claim is made about identity).
 > The upstream repository <https://github.com/HuangZhuoRui/LocationSpoofer> was **archived on 2026-10-18** and its source code removed.
 > This branch has been maintained by **ZenQing-Tao** since **2026-10-22**, based on upstream commit `dcbe620`.
-> **This project is not affiliated with, endorsed by, or released on behalf of the original author.**
+> **This project is not affiliated with, endorsed by, or released on behalf of the upstream author/maintainer.**
 
 Android system-level location and wireless-environment simulation framework based on KernelSU / APatch / Magisk + LSPosed (libxposed API 102).
 
@@ -17,7 +18,8 @@ Android system-level location and wireless-environment simulation framework base
 | Item | Value |
 | --- | --- |
 | Original project | LocationSpoofer |
-| Original author | SuseOAA (GitHub [@HuangZhuoRui](https://github.com/HuangZhuoRui)) |
+| Upstream maintainer | GitHub [@HuangZhuoRui](https://github.com/HuangZhuoRui) |
+| Copyright holder (upstream LICENSE) | SuseOAA |
 | Upstream repo | <https://github.com/HuangZhuoRui/LocationSpoofer> (archived 2026-10-18) |
 | Upstream last commit | `dcbe620` |
 | License | GNU General Public License v3.0 — see [`LICENSE`](./LICENSE) |
@@ -100,7 +102,7 @@ cp local.yml.example local.yml          # optional: your own keys
 
 ## Credits
 
-- Thanks to **SuseOAA** and all upstream contributors.
+- Thanks to the upstream author (named in the upstream LICENSE as **SuseOAA**), the upstream maintainer [@HuangZhuoRui](https://github.com/HuangZhuoRui), and all upstream contributors.
 - Original work © 2026 SuseOAA; modifications © 2026 ZenQing-Tao.
 - Distributed under [GNU GPLv3](./LICENSE); see [`NOTICE`](./NOTICE) for the modification record.
 

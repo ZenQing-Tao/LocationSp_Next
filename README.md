@@ -1,10 +1,11 @@
 # LocationSp_Next
 
 > **非官方延续分支（unofficial fork）**
-> 本项目源自 **LocationSpoofer**，原作者 **SuseOAA**（GitHub [@HuangZhuoRui](https://github.com/HuangZhuoRui)）。
+> 本项目源自 **LocationSpoofer**，上游仓库由 GitHub 用户 [@HuangZhuoRui](https://github.com/HuangZhuoRui) 维护；
+> 上游 `LICENSE` 中的版权署名为 **SuseOAA**（本仓库原样保留该署名，未对其身份作任何认定）。
 > 上游仓库 <https://github.com/HuangZhuoRui/LocationSpoofer> 已于 **2026-10-18 归档**，源码已从该仓库移除，仅保留说明页。
 > 本仓库自 **2026-10-22** 起由 **ZenQing-Tao** 接手维护，代码基于上游最后一个提交 `dcbe620`。
-> **本项目与原作者无隶属关系，不代表原作者发布，也未获得其背书。**
+> **本项目与上游作者/维护者无隶属关系，不代表其发布，也未获得其背书。**
 
 基于 KernelSU / APatch / Magisk + LSPosed（libxposed API 102）的 Android 系统级虚拟定位与无线环境模拟框架。
 
@@ -17,7 +18,8 @@
 | 项目 | 说明 |
 | --- | --- |
 | 原始项目 | LocationSpoofer |
-| 原作者 | SuseOAA（GitHub [@HuangZhuoRui](https://github.com/HuangZhuoRui)） |
+| 上游仓库维护者 | GitHub [@HuangZhuoRui](https://github.com/HuangZhuoRui) |
+| 版权署名（上游 LICENSE） | SuseOAA |
 | 上游仓库 | <https://github.com/HuangZhuoRui/LocationSpoofer>（2026-10-18 归档） |
 | 上游最后提交 | `dcbe620` |
 | 许可证 | GNU General Public License v3.0（见 [`LICENSE`](./LICENSE)） |
@@ -156,7 +158,7 @@ CI：`.github/workflows/build-debug-apk.yml`（手动触发，产出可直接安
 
 ## 致谢与许可
 
-- 感谢原作者 **SuseOAA** 及所有上游贡献者的工作；
+- 感谢上游项目的作者（上游 `LICENSE` 署名为 **SuseOAA**）、仓库维护者 [@HuangZhuoRui](https://github.com/HuangZhuoRui) 及所有上游贡献者的工作；
 - 原始作品版权：**Copyright © 2026 SuseOAA**；
 - 本分支修改部分版权：**Copyright © 2026 ZenQing-Tao**；
 - 依 [GNU General Public License v3.0](./LICENSE) 分发；修改记录见 [`NOTICE`](./NOTICE)；
