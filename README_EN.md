@@ -11,6 +11,13 @@ Android system-level location and wireless-environment simulation framework base
 
 > ⚠️ **Read before use**: for study, research and testing only — on your own devices, your own apps, or environments you are explicitly authorized to test. **Any illegal use is strictly prohibited.** See the disclaimer at the end.
 
+<p align="center">
+  <img src="docs/images/app_icon.png" width="128" alt="LocationSp_Next app icon">
+</p>
+<p align="center"><sub>Icon inspired by the 「缩地青符」 (Shrink-Earth Talisman).</sub></p>
+<p align="center"><strong>Stand still, travel a thousand miles.</strong></p>
+
+
 ---
 
 ## Provenance & License
@@ -101,6 +108,8 @@ cp local.yml.example local.yml          # optional: your own keys
 ---
 
 ## Credits
+
+- The app icon is an original work of this project, inspired by the 「缩地青符」 (Shrink-Earth Talisman).
 
 - Thanks to the upstream author (named in the upstream LICENSE as **SuseOAA**), the upstream maintainer [@HuangZhuoRui](https://github.com/HuangZhuoRui), and all upstream contributors.
 - Original work © 2026 SuseOAA; modifications © 2026 ZenQing-Tao.
