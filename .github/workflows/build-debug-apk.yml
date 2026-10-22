@@ -204,7 +204,20 @@ jobs:
           echo "APK_COUNT=$COUNT" >> "$GITHUB_OUTPUT"
           echo "共产出 $COUNT 个安装包"
 
-      # 无论成败都把关键信息写进 run summary，并额外发成 workflow annotation。
+      # 把 Gradle 日志作为 artifact 上传：run summary 与网页日志都需要登录后才能看，
+      # 而 artifact 下载接口是公开的，便于外部直接取到真实报错。
+      - name: Upload build log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: |
+            gradle-build.log
+            app/build/outputs/
+          if-no-files-found: warn
+          retention-days: 7
+
+      # 失败时把关键信息汇总到 run summary，避免在几百行日志里翻找。
       # annotation 会出现在 check-runs 的 annotations 接口里，便于外部直接读取
       # （run summary 只有登录后在网页上才看得到，日志下载接口需要更高权限）。
       - name: Report diagnostics
@@ -220,10 +233,19 @@ jobs:
           COMPILE_SDK_USED="${{ steps.sdk.outputs.COMPILE_SDK }}"
           BUILD_OUTCOME="${{ steps.build.outcome }}"
 
-          # 写成 annotation（标题即summary，消息即详情）
+          # 写成真正的 workflow annotation（会出现在 check-runs annotations 接口）
           {
-            echo "::error title=构建诊断::compileSdk=${COMPILE_SDK_USED:-未设置}; build=${BUILD_OUTCOME}; platforms=[${PLATFORMS}]; apks=[${APKS}]"
-          } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=构建诊断::compileSdk=${COMPILE_SDK_USED:-未设置} build=${BUILD_OUTCOME} platforms=[${PLATFORMS}] apks=[${APKS}]"
+          }
+          # Gradle 关键错误逐行发成 annotation，确保外部能读到
+          if [ -n "$LOGS" ]; then
+            echo "$LOGS" | head -n 12 | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error title=Gradle::${line:0:200}"
+            done
+          fi
+          if [ ! -f gradle-build.log ]; then
+            echo "::error title=Gradle::gradle-build.log 不存在，gradlew 未执行"
+          fi
 
           {
             echo "## 构建诊断"
