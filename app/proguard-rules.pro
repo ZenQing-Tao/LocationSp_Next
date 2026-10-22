@@ -50,3 +50,16 @@
 -keep class * extends android.app.Activity { *; }
 -keep class * extends android.app.Service { *; }
 -keep class * extends android.content.ContentProvider { *; }
+
+# MapLibre（含 geojson / annotations / style），JNI 与反射大量使用，必须整体保留
+-keep class org.maplibre.** { *; }
+-keep interface org.maplibre.** { *; }
+-dontwarn org.maplibre.**
+-keep class com.mapbox.** { *; }
+-dontwarn com.mapbox.**
+# OkHttp / Okio（MapLibre 瓦片与 Nominatim 搜索都走它们）
+-dontwarn okhttp3.**
+-dontwarn okio.**
+# Koin 反射注入
+-keep class org.koin.** { *; }
+-dontwarn org.koin.**
