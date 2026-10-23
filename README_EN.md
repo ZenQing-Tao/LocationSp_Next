@@ -41,7 +41,7 @@ Android system-level location and wireless-environment simulation framework base
 | Item | Upstream | This fork |
 | --- | --- | --- |
 | Map keys | Third-party keys baked in | **No keys bundled**; injected via `local.yml` / env vars / in-app settings |
-| Default basemap | AMap | **OSM (MapLibre + CARTO raster tiles)** — no key required |
+| Default basemap | AMap | **OSM vector tiles (MapLibre + OpenFreeMap)** — no key, no quota |
 | Default search | AMap POI | **Nominatim** — no key required |
 | AMap / Baidu / Google | Enabled out of the box | Optional; bring your own key |
 | App name | LocationSpoofer | **LocationSp_Next** |
@@ -75,7 +75,7 @@ Without any key the app still works: OSM basemap + Nominatim search.
 
 ### Map attribution
 
-- Base map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, raster tiles by [CARTO](https://carto.com/attributions);
+- Base map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, vector tiles and styles by [OpenFreeMap](https://openfreemap.org/) (no key, no quota);
 - Satellite imagery © [Esri](https://www.esri.com/) World Imagery;
 - Follow each provider's attribution and terms when using AMap / Baidu / Google.
 

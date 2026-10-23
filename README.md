@@ -41,7 +41,7 @@
 | 项目 | 上游（归档前） | 本分支 |
 | --- | --- | --- |
 | 地图 Key | 构建产物内置第三方 Key | **不内置任何 Key**，由 `local.yml` / 环境变量 / App 内设置注入 |
-| 默认底图 | 高德 | **OSM（MapLibre + CARTO 栅格瓦片）**，无需 Key、开箱可用 |
+| 默认底图 | 高德 | **OSM 矢量瓦片（MapLibre + OpenFreeMap）**，无需 Key、无调用配额 |
 | 默认搜索 | 高德 POI | **Nominatim**，无需 Key |
 | 高德 / 百度 / Google | 内置即可用 | 保留为**可选引擎**，需使用者自备 Key |
 | 应用名 | LocationSpoofer | **LocationSp_Next** |
@@ -99,7 +99,7 @@
 
 ### 地图署名
 
-- 底图数据 © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors，栅格瓦片由 [CARTO](https://carto.com/attributions) 提供；
+- 底图数据 © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors，矢量瓦片与样式由 [OpenFreeMap](https://openfreemap.org/) 提供（免 Key、无配额）；
 - 卫星影像 © [Esri](https://www.esri.com/) World Imagery；
 - 使用高德 / 百度 / Google 引擎时，请遵守对应平台的署名与使用条款。
 
@@ -126,7 +126,7 @@ CI：`.github/workflows/build-debug-apk.yml`（手动触发，产出可直接安
 ## 常见问题
 
 **地图一片空白？**
-默认 OSM 走 CARTO 瓦片；若长期空白，请检查网络是否能访问 `basemaps.cartocdn.com`。切到高德引擎则需要你自己的 Key 且已绑定当前包名与签名。
+默认底图走 OpenFreeMap 矢量瓦片；若长期空白，请确认网络能访问 `tiles.openfreemap.org`，或到设置里切换到高德引擎（需你自己的 Key，且已绑定当前包名与签名）。
 
 **搜索提示「额度耗尽」？**
 高德搜索接口按 Key 计配额。请使用自己申请的 Key，避免与他人共用。
