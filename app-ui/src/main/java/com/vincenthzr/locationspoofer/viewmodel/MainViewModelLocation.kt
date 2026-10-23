@@ -21,6 +21,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 // 当前位置获取
 internal fun MainViewModel.fetchCurrentLocation(ctx: Context, forceCallback: ((Double, Double) -> Unit)? = null) {
     viewModelScope.launch(Dispatchers.Main) {
+        // 若没有任何高德 Key（用户未填且 manifest 为空），直接用系统定位，
+        // 避免用空 Key 去发起必定失败的鉴权请求（不使用任何他人凭证，也不产生无效请求）。
+        if (!hasAmapKey(ctx)) {
+            fallbackToNativeLocation(ctx, forceCallback, true)
+            return@launch
+        }
         val client = try {
             AMapLocationClient(ctx.applicationContext)
         } catch (e: Exception) {
@@ -643,4 +649,22 @@ internal suspend fun MainViewModel.fetchCellFromOpenCellIdSync(lat: Double, lng:
     } catch (e: Exception) {
         e.printStackTrace()
     }
+}
+
+
+/** 是否存在可用的高德 Key（用户设置 或 manifest 占位符实际值）。 */
+internal fun hasAmapKey(context: Context): Boolean {
+    val fromPrefs = context
+        .getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        .getString("amap_api_key", "")
+        ?.trim()
+        .orEmpty()
+    if (fromPrefs.isNotEmpty()) return true
+    val fromManifest = runCatching {
+        context.packageManager
+            .getApplicationInfo(context.packageName, android.content.pm.PackageManager.GET_META_DATA)
+            .metaData
+            ?.getString("com.amap.api.v2.apikey")
+    }.getOrNull()
+    return !fromManifest.isNullOrBlank()
 }

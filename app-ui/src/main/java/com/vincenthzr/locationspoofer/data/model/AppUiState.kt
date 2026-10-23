@@ -127,6 +127,7 @@ data class AppState(
     val wigleToken: String = "",
     val opencellidToken: String = "",
     val customTileUrl: String = "",
+    val customSearchUrl: String = "",
     val appSha1: String = "",
     val appCoordinateSystems: Map<String, String> = emptyMap(),
     val isContinuousScanning: Boolean = false,

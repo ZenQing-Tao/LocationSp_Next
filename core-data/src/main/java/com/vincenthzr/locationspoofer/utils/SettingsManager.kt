@@ -60,6 +60,11 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("custom_tile_url", "") ?: ""
         set(value) = prefs.edit().putString("custom_tile_url", value).apply()
 
+    /** 自定义地点搜索服务地址（Nominatim 兼容）。留空 = 内置 Photon → Nominatim。 */
+    var customSearchUrl: String
+        get() = prefs.getString("custom_search_url", "") ?: ""
+        set(value) = prefs.edit().putString("custom_search_url", value).apply()
+
     var wigleApiToken: String
         get() = prefs.getString("wigle_api_token", "") ?: ""
         set(value) = prefs.edit().putString("wigle_api_token", value).apply()

@@ -645,4 +645,8 @@ Error details: %s</string>
     <string name="custom_tile_url">Custom tile URL</string>
     <string name="custom_tile_url_hint">Leave empty to use the built-in OpenFreeMap vector basemap</string>
     <string name="custom_tile_url_desc">Supports a raster tile template (with {z}/{x}/{y}) or a .json style URL</string>
+    <string name="custom_search_url">Custom search endpoint</string>
+    <string name="custom_search_url_hint">Leave empty to use built-in Photon (falls back to Nominatim)</string>
+    <string name="custom_search_url_desc">Must be a Nominatim-compatible endpoint (q / format / limit). Use it for your own instance or proxy</string>
+    <string name="osm_search_daily_limit">Daily free search limit reached (%1$d). Try again tomorrow, or set a custom search endpoint in Settings.</string>
 </resources>

@@ -211,9 +211,18 @@ private var cachedPlacesClient: com.google.android.libraries.places.api.net.Plac
 // 这里用进程内时间戳做节流，宁可稍等也不要打爆公共实例。
 
 private const val NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/search"
+private const val PHOTON_ENDPOINT = "https://photon.komoot.io/api/"
 private const val NOMINATIM_USER_AGENT =
     "LocationSp_Next/3.1 (Android; +https://github.com/ZenQing-Tao/LocationSp_Next)"
 private const val NOMINATIM_MIN_INTERVAL_MS = 1100L
+
+/** 普通用户每日免费搜索次数上限（仅限内置 OSM 服务；自备 Key 的高德 / 百度 / Google 不受此限制）。 */
+private const val DAILY_SEARCH_LIMIT = 8
+
+// 搜索结果本地缓存：仅存关键词与坐标，7 天后自动失效
+private const val SEARCH_CACHE_PREFS = "osm_search_cache"
+private const val SEARCH_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
+private const val SEARCH_CACHE_MAX = 200
 
 private val nominatimThrottleLock = Any()
 private var lastNominatimRequestAt: Long = 0L
@@ -225,6 +234,59 @@ private val nominatimClient: okhttp3.OkHttpClient by lazy {
         .build()
 }
 
+/**
+ * 今日剩余免费搜索次数检查：允许时顺便计数。
+ */
+private fun consumeDailyQuota(context: Context): Boolean {
+    val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+    val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    val key = "search_quota_$day"
+    val used = prefs.getInt(key, 0)
+    if (used >= DAILY_SEARCH_LIMIT) return false
+    prefs.edit().putInt(key, used + 1).apply()
+    return true
+}
+
+private fun readSearchCache(context: Context, q: String): List<AppPoiItem> {
+    val prefs = context.getSharedPreferences(SEARCH_CACHE_PREFS, Context.MODE_PRIVATE)
+    val raw = prefs.getString(q.lowercase(java.util.Locale.ROOT), null) ?: return emptyList()
+    return runCatching {
+        val obj = org.json.JSONObject(raw)
+        if (System.currentTimeMillis() - obj.optLong("ts") > SEARCH_CACHE_TTL_MS) return emptyList()
+        val arr = obj.optJSONArray("items") ?: return emptyList()
+        val out = ArrayList<AppPoiItem>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out.add(AppPoiItem(o.optString("t"), o.optString("s"), o.optDouble("lat"), o.optDouble("lng")))
+        }
+        out
+    }.getOrDefault(emptyList())
+}
+
+private fun writeSearchCache(context: Context, q: String, items: List<AppPoiItem>) {
+    if (items.isEmpty()) return
+    val prefs = context.getSharedPreferences(SEARCH_CACHE_PREFS, Context.MODE_PRIVATE)
+    if (prefs.all.size >= SEARCH_CACHE_MAX) prefs.edit().clear().apply()
+    val arr = org.json.JSONArray()
+    items.forEach { item ->
+        arr.put(org.json.JSONObject().apply {
+            put("t", item.title)
+            put("s", item.snippet)
+            put("lat", item.lat)
+            put("lng", item.lng)
+        })
+    }
+    val obj = org.json.JSONObject().apply {
+        put("ts", System.currentTimeMillis())
+        put("items", arr)
+    }
+    prefs.edit().putString(q.lowercase(java.util.Locale.ROOT), obj.toString()).apply()
+}
+
+/**
+ * OSM 地点搜索：本地缓存 → 每日限额 → Photon（国内可直连）→ Nominatim（兜底）。
+ * 若用户在设置里填了「自定义搜索地址」，则只用该地址（不占用免费限额）。
+ */
 private fun searchNominatim(
     context: Context,
     keyword: String,
@@ -236,7 +298,32 @@ private fun searchNominatim(
         return
     }
 
-    // 节流：确保与上一次请求间隔 ≥ NOMINATIM_MIN_INTERVAL_MS
+    // 1) 本地缓存命中：不计次数、不发请求
+    val cached = readSearchCache(context, q)
+    if (cached.isNotEmpty()) {
+        onResult(cached)
+        return
+    }
+
+    // 2) 自定义搜索地址：用户自己的服务，不占免费限额
+    val custom = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        .getString("custom_search_url", "")?.trim().orEmpty()
+    val customMode = custom.isNotEmpty()
+
+    // 3) 免费限额（仅内置服务）
+    if (!customMode && !consumeDailyQuota(context)) {
+        context.mainExecutor.execute {
+            Toast.makeText(
+                context,
+                context.getString(R.string.osm_search_daily_limit, DAILY_SEARCH_LIMIT),
+                Toast.LENGTH_LONG
+            ).show()
+        }
+        onResult(emptyList())
+        return
+    }
+
+    // 节流：两个公共实例都不要高频调用
     val waitMs = synchronized(nominatimThrottleLock) {
         val elapsed = System.currentTimeMillis() - lastNominatimRequestAt
         if (lastNominatimRequestAt != 0L && elapsed < NOMINATIM_MIN_INTERVAL_MS) {
@@ -257,62 +344,53 @@ private fun searchNominatim(
             lastNominatimRequestAt = System.currentTimeMillis()
         }
 
-        val url = java.net.URL(
-            java.net.URLEncoder.encode(q, "UTF-8").let { enc ->
-                "$NOMINATIM_ENDPOINT?q=$enc&format=jsonv2&limit=10&addressdetails=0"
-            }
-        ).toString()
+        val enc = java.net.URLEncoder.encode(q, "UTF-8")
+        var lastError = ""
 
-        var ok = false
-        var message = ""
-        try {
-            val request = okhttp3.Request.Builder()
-                .url(url)
-                // Nominatim 政策：必须提供能联系到使用者的 User-Agent
-                .header("User-Agent", NOMINATIM_USER_AGENT)
-                .header("Accept", "application/json")
-                .build()
-
-            nominatimClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    // 429 = 触发限流；其余按网络/服务异常处理
-                    message = if (response.code == 429) "RATE_LIMITED" else "HTTP_${response.code}"
-                    return@use
+        fun tryEndpoint(url: String, parser: (String, String) -> List<AppPoiItem>): Boolean {
+            return try {
+                val request = okhttp3.Request.Builder()
+                    .url(url)
+                    .header("User-Agent", NOMINATIM_USER_AGENT)
+                    .header("Accept", "application/json")
+                    .build()
+                nominatimClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        lastError = if (response.code == 429) "RATE_LIMITED" else "HTTP_${response.code}"
+                        return false
+                    }
+                    val items = parser(response.body?.string().orEmpty(), q)
+                    if (items.isEmpty()) {
+                        lastError = "NO_RESULT"
+                        return false
+                    }
+                    writeSearchCache(context, q, items)
+                    onResult(items)
+                    true
                 }
-                val body = response.body?.string().orEmpty()
-                val arr = org.json.JSONArray(body)
-                val items = ArrayList<AppPoiItem>(arr.length())
-                for (i in 0 until arr.length()) {
-                    val obj = arr.optJSONObject(i) ?: continue
-                    val latStr = obj.optString("lat")
-                    val lonStr = obj.optString("lon")
-                    if (latStr.isEmpty() || lonStr.isEmpty()) continue
-                    val lat = latStr.toDoubleOrNull() ?: continue
-                    val lon = lonStr.toDoubleOrNull() ?: continue
-                    // Nominatim 返回 WGS-84；上层统一使用 GCJ-02，必须转换
-                    val gcj = wgs84ToGcj02(lat, lon)
-                    items.add(
-                        AppPoiItem(
-                            title = obj.optString("display_name").substringBefore(",").ifBlank { q },
-                            snippet = obj.optString("display_name"),
-                            lat = gcj.first,
-                            lng = gcj.second
-                        )
-                    )
-                }
-                ok = true
-                onResult(items)
+            } catch (e: Exception) {
+                lastError = e.message ?: e.javaClass.simpleName
+                false
             }
-        } catch (e: Exception) {
-            message = e.message ?: e.javaClass.simpleName
+        }
+
+        val ok: Boolean = if (customMode) {
+            tryEndpoint("$custom?q=$enc&format=jsonv2&limit=10", ::parseNominatimResults)
+        } else {
+            tryEndpoint("$PHOTON_ENDPOINT?q=$enc&limit=10", ::parsePhotonResults) ||
+                tryEndpoint("$NOMINATIM_ENDPOINT?q=$enc&format=jsonv2&limit=10&addressdetails=0", ::parseNominatimResults)
         }
 
         if (!ok) {
             val text = when {
-                message == "RATE_LIMITED" ->
-                    context.getString(R.string.osm_search_rate_limited)
-                else ->
-                    context.getString(R.string.osm_search_failed_format, message)
+                lastError == "RATE_LIMITED" -> context.getString(R.string.osm_search_rate_limited)
+                lastError == "NO_RESULT" -> context.getString(R.string.osm_search_failed_format, lastError)
+                lastError.contains("timeout", true) ||
+                    lastError.contains("connect", true) ||
+                    lastError.contains("Failed", true) ||
+                    lastError.contains("ENET", true) ->
+                    context.getString(R.string.osm_search_offline_hint)
+                else -> context.getString(R.string.osm_search_failed_format, lastError)
             }
             context.mainExecutor.execute {
                 Toast.makeText(context, text, Toast.LENGTH_LONG).show()
@@ -320,6 +398,51 @@ private fun searchNominatim(
             onResult(emptyList())
         }
     }.start()
+}
+
+/** 解析 Photon 返回的 GeoJSON FeatureCollection。 */
+private fun parsePhotonResults(body: String, keyword: String): List<AppPoiItem> {
+    val root = runCatching { org.json.JSONObject(body) }.getOrNull() ?: return emptyList()
+    val features = root.optJSONArray("features") ?: return emptyList()
+    val items = ArrayList<AppPoiItem>(features.length())
+    for (i in 0 until features.length()) {
+        val feature = features.optJSONObject(i) ?: continue
+        val coords = feature.optJSONObject("geometry")?.optJSONArray("coordinates") ?: continue
+        val lon = coords.optDouble(0, Double.NaN)
+        val lat = coords.optDouble(1, Double.NaN)
+        if (lat.isNaN() || lon.isNaN()) continue
+        val props = feature.optJSONObject("properties")
+        val name = props?.optString("name").orEmpty().ifBlank { keyword }
+        val area = listOfNotNull(
+            props?.optString("district")?.takeIf { it.isNotBlank() },
+            props?.optString("city")?.takeIf { it.isNotBlank() },
+            props?.optString("country")?.takeIf { it.isNotBlank() }
+        ).joinToString(" · ")
+        val gcj = wgs84ToGcj02(lat, lon)
+        items.add(AppPoiItem(name, area, gcj.first, gcj.second))
+    }
+    return items
+}
+
+/** 解析 Nominatim 返回的 JSON 数组。 */
+private fun parseNominatimResults(body: String, keyword: String): List<AppPoiItem> {
+    val arr = runCatching { org.json.JSONArray(body) }.getOrNull() ?: return emptyList()
+    val items = ArrayList<AppPoiItem>(arr.length())
+    for (i in 0 until arr.length()) {
+        val obj = arr.optJSONObject(i) ?: continue
+        val lat = obj.optString("lat").toDoubleOrNull() ?: continue
+        val lon = obj.optString("lon").toDoubleOrNull() ?: continue
+        val gcj = wgs84ToGcj02(lat, lon)
+        items.add(
+            AppPoiItem(
+                title = obj.optString("display_name").substringBefore(",").ifBlank { keyword },
+                snippet = obj.optString("display_name"),
+                lat = gcj.first,
+                lng = gcj.second
+            )
+        )
+    }
+    return items
 }
 
 fun performPoiSearch(

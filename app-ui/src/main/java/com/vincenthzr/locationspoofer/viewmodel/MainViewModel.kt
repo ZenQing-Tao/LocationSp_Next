@@ -103,7 +103,8 @@ class MainViewModel(
             satelliteCountInput = settingsRepository.satelliteCount,
             wigleToken = settingsRepository.getWigleApiToken(),
             opencellidToken = settingsRepository.getOpencellidApiToken(),
-            customTileUrl = settingsRepository.getCustomTileUrl()
+            customTileUrl = settingsRepository.getCustomTileUrl(),
+            customSearchUrl = settingsRepository.getCustomSearchUrl()
         )
     )
     val uiState: StateFlow<AppState> = _uiState.asStateFlow()

@@ -56,6 +56,12 @@ class SettingsRepository(private val settingsManager: SettingsManager) {
         settingsManager.customTileUrl = value
     }
 
+    fun getCustomSearchUrl(): String = settingsManager.customSearchUrl
+
+    fun setCustomSearchUrl(value: String) {
+        settingsManager.customSearchUrl = value
+    }
+
     fun getWigleApiToken(): String = settingsManager.wigleApiToken
 
     fun setWigleApiToken(value: String) {

@@ -195,6 +195,11 @@ internal fun MainViewModel.setCustomTileUrl(url: String) {
     _uiState.update { it.copy(customTileUrl = url.trim()) }
 }
 
+internal fun MainViewModel.setCustomSearchUrl(url: String) {
+    settingsRepository.setCustomSearchUrl(url.trim())
+    _uiState.update { it.copy(customSearchUrl = url.trim()) }
+}
+
 internal fun MainViewModel.setRootSolution(solution: RootSolution) {
     settingsRepository.setRootSolution(solution.name)
     _uiState.update { it.copy(rootSolution = solution) }
