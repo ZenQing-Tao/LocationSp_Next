@@ -1,8 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: 💬 Telegram Community Group
-    url: https://t.me/+CsxZGItXdW40ZWVl
-    about: Join our community on Telegram for discussions and real-time support.
-  - name: 📖 Usage Documentation & Tutorial
-    url: https://docs.google.com/document/d/1fFEz3k7ATdN2dwY1L3RJn1QuzgokIsslNa88-vUPxPk/edit?usp=sharing
-    about: Read the comprehensive LocationSpoofer user guide and tutorials.
+  - name: 使用问题 / 适配请求（不在此处处理）
+    url: https://github.com/ZenQing-Tao/LocationSp_Next/blob/main/README.md
+    about: 本项目不接受「帮我适配某个 App」或「绕过风控」的请求；请先阅读 README 与常见问题。
+  - name: 安全漏洞（勿公开）
+    url: https://github.com/ZenQing-Tao/LocationSp_Next/security/advisories/new
+    about: 请使用 GitHub 私密安全通报，不要在公开 Issue 中披露可利用细节。
