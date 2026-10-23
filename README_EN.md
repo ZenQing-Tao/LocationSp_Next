@@ -95,6 +95,18 @@ cp local.yml.example local.yml          # optional: your own keys
 
 ---
 
+## Data & Privacy
+
+- While running, the app reads environment data **locally**: Wi-Fi scan results (SSID / BSSID / RSSI), cellular cells (including 5G NR), BLE beacons, sensors and location, so that the simulated environment stays self-consistent.
+- This data is stored **only on your device** (app-private database) and is **never uploaded**; the project has no backend server.
+- Network requests happen only when you use the corresponding feature:
+  - map tiles: OpenFreeMap (default) / Esri (satellite) / a tile source you configure;
+  - place search: Nominatim (fixed User-Agent, throttled to 1 req/s);
+  - cloud environment data: WiGLE / OpenCellID (**only if you supply your own token**);
+  - update check: GitHub API.
+- Uninstalling the app removes all local data; you can also export or clear it from the app's data import/export screen.
+- This project does not implement any environment-data upload or crowdsourcing. If you add such features in a fork, you are collecting other people's data and must comply with applicable privacy laws yourself.
+
 ## Disclaimer & Acceptable Use
 
 1. **Permitted use only.** This project is provided for study, research and communication, and for testing on your own devices/apps or environments you are explicitly authorized to test.
