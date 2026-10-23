@@ -88,9 +88,17 @@ jobs:
           fi
           
           # 获取提交记录
+          # 基线：上游 LocationSpoofer 的最后一个提交。删除全部 tag 后若没有 PREV_TAG，
+          # 只从该基线之后统计，避免把上游历史（几百条 feat:/fix:）全部列进发布说明。
+          BASELINE_SHA="dcbe620"
           if [ -z "$PREV_TAG" ]; then
-            echo "没有找到上一个基准 tag，获取所有提交记录。"
-            COMMITS=$(git log --no-merges --pretty=format:"%s")
+            if git cat-file -e "${BASELINE_SHA}^{commit}" 2>/dev/null; then
+              echo "没有上一个 tag，改用仓库基线 ${BASELINE_SHA} 之后的提交。"
+              COMMITS=$(git log ${BASELINE_SHA}..HEAD --no-merges --pretty=format:"%s")
+            else
+              echo "基线提交不存在，仅取最近 30 条提交。"
+              COMMITS=$(git log -n 30 --no-merges --pretty=format:"%s")
+            fi
           else
             echo "上一个基准 tag: $PREV_TAG"
             COMMITS=$(git log $PREV_TAG..HEAD --no-merges --pretty=format:"%s")
