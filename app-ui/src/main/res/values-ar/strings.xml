@@ -461,4 +461,5 @@
     <string name="custom_search_url_hint">Leave empty to use built-in Photon (falls back to Nominatim)</string>
     <string name="custom_search_url_desc">Must be a Nominatim-compatible endpoint (q / format / limit). Use it for your own instance or proxy</string>
     <string name="osm_search_daily_limit">Daily free search limit reached (%1$d). Try again tomorrow, or set a custom search endpoint in Settings.</string>
+    <string name="osm_search_offline_hint">OSM search is currently unreachable (likely a network restriction). Set a custom search endpoint in Settings, or switch to the AMap engine with your own key.</string>
 </resources>

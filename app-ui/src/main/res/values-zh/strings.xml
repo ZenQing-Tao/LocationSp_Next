@@ -649,4 +649,5 @@
     <string name="custom_search_url_hint">留空则使用内置 Photon（失败时回退 Nominatim）</string>
     <string name="custom_search_url_desc">需兼容 Nominatim 接口（支持 q / format / limit 参数）。自建地址或代理时填写</string>
     <string name="osm_search_daily_limit">今日免费搜索已达上限（%1$d 次），请明天再试，或到设置里开启自定义搜索地址</string>
+    <string name="osm_search_offline_hint">OSM 搜索服务当前不可达（可能是网络限制）。可到「设置 → 地图配置」填写自定义搜索地址，或切换到高德引擎并使用自己的 Key。</string>
 </resources>
