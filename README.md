@@ -44,7 +44,7 @@
 | --- | --- | --- |
 | 地图 Key | 构建产物内置第三方 Key | **不内置任何 Key**，由 `local.yml` / 环境变量 / App 内设置注入 |
 | 默认底图 | 高德 | **OSM 矢量瓦片（MapLibre + OpenFreeMap）**，无需 Key、无调用配额 |
-| 默认搜索 | 高德 POI | **Nominatim**，无需 Key |
+| 默认搜索 | 高德 POI | **Photon**（兜底 Nominatim），无需 Key；内置服务每设备每日 8 次上限 |
 | 高德 / 百度 / Google | 内置即可用 | 保留为**可选引擎**，需使用者自备 Key |
 | 应用名 | LocationSpoofer | **LocationSp_Next** |
 
@@ -85,7 +85,7 @@
 
 ---
 
-## 地图与第三方服务配置
+## 地图与搜索服务配置
 
 本仓库**不内置任何第三方地图 Key**。Key 通过项目根目录的 `local.yml`（已被 `.gitignore` 忽略）或同名环境变量注入，模板见 [`local.yml.example`](./local.yml.example)。
 
@@ -95,9 +95,21 @@
 | `BAIDU_MAP_API_KEY` | 百度地图 Android SDK | 创建应用选 **Android SDK**，填写包名与签名 SHA1 |
 | `GOOGLE_MAPS_API_KEY` | Google Maps / Places | **按次计费**，务必配置包名 + SHA1 + API 白名单，并在自己账号下控制用量 |
 
-- 不配置任何 Key 也能正常使用：默认走 OSM 底图 + Nominatim 搜索；
+- 不配置任何 Key 也能正常使用：默认走 OSM 底图 + Photon 搜索（Photon 不可用时自动回退 Nominatim）；
 - 也可在 App 内「设置 → 地图配置」临时填入自己的 Key；
 - **请勿使用他人的 Key**：Key 绑定包名与签名，转借既无法生效，也违反各平台开发者协议。
+
+### 搜索服务
+
+| 项 | 说明 |
+| --- | --- |
+| 默认服务 | [Photon](https://photon.komoot.io/) → 失败时回退 [Nominatim](https://nominatim.org/) |
+| 每日上限 | 每设备每天 **8 次**（仅限内置服务；缓存命中不计数） |
+| 本地缓存 | 搜索结果保存在本机 7 天，最多 200 条；仅存关键词与坐标，不下载任何数据包、不上传 |
+| 自定义地址 | 设置 → 地图配置填写 Nominatim 兼容接口，**不占用免费额度** |
+| 不受限的方式 | 使用高德 / 百度 / Google 引擎并自备 Key，或自定义搜索地址 |
+
+> 内置服务为社区公益实例，为避免过度占用导致被限流，才设置了每日上限；本项目不提供任何付费额度或订阅。
 
 ### 地图署名
 
@@ -133,8 +145,14 @@ CI：`.github/workflows/build-debug-apk.yml`（手动触发，产出可直接安
 **搜索提示「额度耗尽」？**
 高德搜索接口按 Key 计配额。请使用自己申请的 Key，避免与他人共用。
 
+**搜索提示「今日免费搜索已达上限」？**
+内置搜索服务（Photon / Nominatim）每设备每天最多 8 次，用于避免过度占用公共实例。需要更高频次时，可到设置填写自定义搜索地址，或切换到高德 / 百度 / Google 引擎并自备 Key（这两种方式不受限）。
+
+**搜索提示「服务当前不可达」？**
+说明 Photon 与 Nominatim 均连不上（常见于部分网络环境）。可在设置中填写可用的自定义搜索地址，或切换到高德引擎并使用自己的 Key。
+
 **升级时提示签名冲突 / 无法安装？**
-不同构建（尤其 debug 包）签名不同，需先卸载再安装。
+不同构建（尤其 debug 包）签名不同，需先卸载再安装。自 **3.1.1** 起使用固定发布签名，之后的版本可直接覆盖升级。
 
 **模拟定位不生效？**
 确认 LSPosed 已启用模块、作用域已勾选目标 App，并重启目标 App；root 方案可在设置中手动指定。
@@ -147,7 +165,7 @@ CI：`.github/workflows/build-debug-apk.yml`（手动触发，产出可直接安
 - 这些数据**仅保存在本机**数据库（`/data/data/com.vincenthzr.locationspoofer/databases/`），**不会上传到任何服务器**；本项目没有任何自建后端。
 - 只有在使用对应功能时才会发起网络请求：
   - 地图瓦片：OpenFreeMap（默认）/ Esri（卫星）/ 你自行配置的瓦片源；
-  - 地点搜索：Nominatim（固定 User-Agent，限流 1 次/秒）；
+  - 地点搜索：Photon（默认）/ Nominatim（兜底），固定 User-Agent、限流 1 次/秒、每日 8 次上限；结果缓存仅存于本机；
   - 云端环境数据：WiGLE / OpenCellID（**仅当你自行填入 Token**）；
   - 检查更新：GitHub API。
 - 卸载 App 即删除全部本地数据；也可在「导入与导出数据」中自行导出或清除。

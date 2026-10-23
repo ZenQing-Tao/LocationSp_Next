@@ -44,7 +44,7 @@ Android system-level location and wireless-environment simulation framework base
 | --- | --- | --- |
 | Map keys | Third-party keys baked in | **No keys bundled**; injected via `local.yml` / env vars / in-app settings |
 | Default basemap | AMap | **OSM vector tiles (MapLibre + OpenFreeMap)** — no key, no quota |
-| Default search | AMap POI | **Nominatim** — no key required |
+| Default search | AMap POI | **Photon** (falls back to Nominatim), no key required; built-in services limited to 8 searches/device/day |
 | AMap / Baidu / Google | Enabled out of the box | Optional; bring your own key |
 | App name | LocationSpoofer | **LocationSp_Next** |
 
@@ -63,7 +63,7 @@ Enable the module in LSPosed and restart the target app (some devices require a 
 
 ---
 
-## Map & third-party configuration
+## Map & search configuration
 
 No map keys are bundled. Configure via `local.yml` (git-ignored) or environment variables — see [`local.yml.example`](./local.yml.example).
 
@@ -73,7 +73,20 @@ No map keys are bundled. Configure via `local.yml` (git-ignored) or environment 
 | `BAIDU_MAP_API_KEY` | Baidu Map Android SDK | Create an app of type **Android SDK**, bind package + SHA1 |
 | `GOOGLE_MAPS_API_KEY` | Google Maps / Places | **Billed per request**; restrict by package + SHA1 + API allowlist |
 
-Without any key the app still works: OSM basemap + Nominatim search.
+Without any key the app still works: OSM basemap + Photon search (falls back to Nominatim).
+
+### Search services
+
+| Item | Detail |
+| --- | --- |
+| Default | [Photon](https://photon.komoot.io/) → falls back to [Nominatim](https://nominatim.org/) |
+| Daily cap | **8 searches/device/day** for built-in services only (cache hits do not count) |
+| Local cache | Results kept on device for 7 days, max 200 entries; only keyword + coordinates, no data packages downloaded, nothing uploaded |
+| Custom endpoint | Settings → Map config; Nominatim-compatible URL, **does not consume the free quota** |
+| Unlimited | AMap / Baidu / Google engines with your own key, or a custom search endpoint |
+
+> The built-in services are community-run public instances; the daily cap exists to avoid overloading them, not to drive any purchase. This project offers no paid quota or subscription.
+
 
 ### Map attribution
 
@@ -103,7 +116,7 @@ cp local.yml.example local.yml          # optional: your own keys
 - This data is stored **only on your device** (app-private database) and is **never uploaded**; the project has no backend server.
 - Network requests happen only when you use the corresponding feature:
   - map tiles: OpenFreeMap (default) / Esri (satellite) / a tile source you configure;
-  - place search: Nominatim (fixed User-Agent, throttled to 1 req/s);
+- place search: Photon (default) / Nominatim (fallback) — fixed User-Agent, 1 req/s throttle, 8 searches/day cap; results cached locally only;
   - cloud environment data: WiGLE / OpenCellID (**only if you supply your own token**);
   - update check: GitHub API.
 - Uninstalling the app removes all local data; you can also export or clear it from the app's data import/export screen.
