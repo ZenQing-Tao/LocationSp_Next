@@ -26,7 +26,7 @@ LocationSpoofer 处于持续维护状态。安全更新与缺陷修复将优先�
    请通过 GitHub 提供的 [Private Vulnerability Reporting](https://github.com/ZenQing-Tao/LocationSp_Next/security/advisories/new) 功能发起私密安全通报。
 
 2. **备用反馈渠道**：
-   如果无法使用 GitHub 私密安全通报，你可以通过官方社区或 Telegram 群组直接私信项目管理员，并附上详细的复现材料。
+   如果无法使用 GitHub 私密安全通报，请在本仓库 Issues 中提交一条说明性的话题（不要在公开 Issue 里披露可直接利用的细节），维护者会通过其他渠道联系你。
 
 ### 报告应包含的内容
 

@@ -21,8 +21,10 @@ NOTICE —— 修改声明与来源说明
 2026-10-22
   * 移除 AndroidManifest 中内置的第三方地图 Key（高德 / 百度）与百度个性化
     样式 ID，改为构建期从 local.yml 或环境变量注入；仓库不再内置任何凭证。
-  * 新增 OSM（MapLibre）地图引擎，作为无需 Key 的默认底图；底图瓦片使用
-    CARTO 栅格服务（数据来源 OpenStreetMap）。
+  * 新增 OSM（MapLibre）地图引擎，作为无需 Key 的默认底图。
+    底图数据来源于 OpenStreetMap（© OpenStreetMap contributors，ODbL），
+    默认瓦片与样式由 OpenFreeMap 提供（载体为 MapLibre 矢量瓦片），
+    卫星影像使用 Esri World Imagery；以上均需保留应有的署名。
   * 新增 Nominatim 地点搜索，作为无需 Key 的默认搜索实现。
   * 高德 / 百度 / Google 引擎降级为可选，需使用者自行配置各自的 Key。
   * 应用显示名称统一为 LocationSp_Next；版本号体系调整为 3.1.0（versionCode 31000）。
@@ -36,7 +38,7 @@ NOTICE —— 修改声明与来源说明
 2. 不得移除本 NOTICE、LICENSE 及原作者的版权声明。
 3. 若你继续修改，请按 GPLv3 §5(a) 在文件中标注修改内容与日期。
 4. 本项目的名称与原作者无隶属关系；请勿以原作者名义发布或暗示其背书。
-5. 地图与地理数据的署名要求（OpenStreetMap / CARTO / Esri 等）不得移除。
+5. 地图与地理数据的署名要求（OpenStreetMap / OpenFreeMap / Esri 等）不得移除。
 
 ------------------------------------------------------------------
 免责声明

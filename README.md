@@ -1,5 +1,7 @@
 # LocationSp_Next
 
+**简体中文** | [English](./README_EN.md)
+
 > **非官方延续分支（unofficial fork）**
 > 本项目源自 **LocationSpoofer**，上游仓库由 GitHub 用户 [@HuangZhuoRui](https://github.com/HuangZhuoRui) 维护；
 > 上游 `LICENSE` 中的版权署名为 **SuseOAA**（本仓库原样保留该署名，未对其身份作任何认定）。

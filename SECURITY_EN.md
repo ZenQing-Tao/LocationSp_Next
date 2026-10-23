@@ -26,7 +26,7 @@ We take the security and stability of LocationSpoofer seriously. If you discover
    Please report security vulnerabilities privately via GitHub's [Private Vulnerability Reporting](https://github.com/ZenQing-Tao/LocationSp_Next/security/advisories/new) feature on this repository.
 
 2. **Alternative Disclosure**:
-   If private vulnerability reporting is unavailable, you may contact the maintainers directly via our official community channels or Telegram group admins with detailed reproduction material.
+   If private vulnerability reporting is unavailable, please open an issue stating only that it is security-related (do not disclose exploitable details publicly); a maintainer will reach out through another channel.
 
 ### What to Include in Your Report
 

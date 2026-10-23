@@ -1,5 +1,7 @@
 # LocationSp_Next
 
+[简体中文](./README.md) | **English**
+
 > **Unofficial fork.**
 > This project is derived from **LocationSpoofer**, whose repository is maintained by GitHub user [@HuangZhuoRui](https://github.com/HuangZhuoRui);
 > the copyright holder named in the upstream `LICENSE` is **SuseOAA** (kept verbatim here; no claim is made about identity).
