@@ -20,6 +20,14 @@
 <p align="center"><strong>坐地不动，日行千里</strong></p>
 
 
+## 目录
+
+- [来源与许可](#来源与许可) · [与上游的主要差异](#与上游的主要差异) · [功能](#功能)
+- [环境要求](#环境要求) · [安装](#安装) · [地图与搜索服务配置](#地图与搜索服务配置)
+- [构建](#构建) · [常见问题](#常见问题)
+- [数据与隐私](#数据与隐私) · [免责声明与使用限制](#免责声明与使用限制)
+- [致谢与许可](#致谢与许可) · [反馈](#反馈)
+
 ---
 
 ## 来源与许可
@@ -197,11 +205,26 @@ CI：`.github/workflows/build-debug-apk.yml`（手动触发，产出可直接安
 
 ## 致谢与许可
 
-- 感谢上游项目的作者（上游 `LICENSE` 署名为 **SuseOAA**）、仓库维护者 [@HuangZhuoRui](https://github.com/HuangZhuoRui) 及所有上游贡献者的工作；
+### 捐赠支持
+
+感谢以下朋友对本项目的捐赠支持。捐赠完全自愿，**不构成购买服务，也不附带任何额外功能、授权或承诺**；本项目对所有使用者一视同仁。
+
+| 捐赠者 | 时间 |
+| --- | --- |
+| <img src="https://github.com/kgyyds.png?size=64" width="24" height="24" alt="kgyyds" /> [@kgyyds](https://github.com/kgyyds) | 2026-10 |
+
+> 若在捐赠备注中留下 GitHub 账号，将在此显示头像与昵称；未留账号者只记录姓名。
+
+### 代码与文档贡献
+
+- 感谢上游项目的作者（上游 `LICENSE` 署名为 **SuseOAA**）、仓库维护者 [@HuangZhuoRui](https://github.com/HuangZhuoRui) 及所有上游贡献者的工作。
+
+### 许可信息
+
 - 原始作品版权：**Copyright © 2026 SuseOAA**；
 - 本分支修改部分版权：**Copyright © 2026 ZenQing-Tao**；
-- 依 [GNU General Public License v3.0](./LICENSE) 分发；修改记录见 [`NOTICE`](./NOTICE)；
-- 第三方组件（高德 / 百度 / Google Maps / MapLibre / Room / Jetpack Compose 等）版权归各自权利人所有，遵循各自许可证。
+- 依 [GNU General Public License v3.0](./LICENSE) 分发，修改记录见 [`NOTICE`](./NOTICE)；
+- 第三方组件（高德 / 百度 / Google Maps / MapLibre / Room / Jetpack Compose 等）版权归各自权利人所有，清单见 [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md)；
 - 应用图标由本项目自制，灵感来源于「缩地青符」。
 
 **分发本项目二进制时，请同时提供对应版本的完整源码，并保留 `LICENSE`、`NOTICE` 与本文件中的署名与免责声明。**

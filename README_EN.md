@@ -136,6 +136,18 @@ cp local.yml.example local.yml          # optional: your own keys
 
 ## Credits
 
+### Donors
+
+Thanks to the following friends for supporting this project. Donations are entirely voluntary and **do not constitute a purchase of services, nor do they grant any extra features, authorization, or commitment**; everyone using this project enjoys the same rights.
+
+| Donor | Date |
+| --- | --- |
+| <img src="https://github.com/kgyyds.png?size=64" width="24" height="24" alt="kgyyds" /> [@kgyyds](https://github.com/kgyyds) | 2026-10 |
+
+> GitHub accounts left in the donation note are listed here with avatar and name; otherwise only the name is recorded.
+
+### Contributors & License
+
 - The app icon is an original work of this project, inspired by the 「缩地青符」 (Shrink-Earth Talisman).
 
 - Thanks to the upstream author (named in the upstream LICENSE as **SuseOAA**), the upstream maintainer [@HuangZhuoRui](https://github.com/HuangZhuoRui), and all upstream contributors.
