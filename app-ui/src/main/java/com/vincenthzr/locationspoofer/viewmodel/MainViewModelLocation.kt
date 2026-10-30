@@ -88,7 +88,7 @@ private fun MainViewModel.fallbackToNativeLocation(
             .filter { loc -> now - loc.time in 0..15_000L && (!loc.hasAccuracy() || loc.accuracy <= 50f) }
             .maxByOrNull { it.time }
         if (cached != null) {
-            applyNativeLocation(ctx, cached, forceCallback, convertToGcj)
+            applyNativeLocation(ctx, cached, forceCallback, convertToGcj, overwrite = true)
         } else if (forceCallback != null) {
             android.widget.Toast.makeText(ctx, ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.waiting_gps_signal), android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -101,7 +101,7 @@ private fun MainViewModel.fallbackToNativeLocation(
             override fun onLocationChanged(location: android.location.Location) {
                 if (settled) return
                 val fresh = System.currentTimeMillis() - location.time in 0..30_000L
-                val accurate = !location.hasAccuracy() || location.accuracy <= 100f
+                val accurate = !location.hasAccuracy() || location.accuracy <= 50f
                 if (!fresh || !accurate) return
                 settled = true
                 runCatching { lm.removeUpdates(this) }
@@ -109,7 +109,7 @@ private fun MainViewModel.fallbackToNativeLocation(
                 if (forceCallback != null) {
                     android.widget.Toast.makeText(ctx, ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.native_location_success), android.widget.Toast.LENGTH_SHORT).show()
                 }
-                applyNativeLocation(ctx, location, forceCallback, convertToGcj)
+                applyNativeLocation(ctx, location, forceCallback, convertToGcj, overwrite = true)
             }
 
             override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
@@ -125,7 +125,7 @@ private fun MainViewModel.fallbackToNativeLocation(
                 settled = true
                 runCatching { lm.removeUpdates(listener) }
             }
-        }, 8_000L)
+        }, 15_000L)
     } catch (e: SecurityException) {
         if (forceCallback != null) {
             android.widget.Toast.makeText(ctx, ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.location_permission_denied), android.widget.Toast.LENGTH_SHORT).show()
@@ -139,7 +139,8 @@ private fun MainViewModel.applyNativeLocation(
     ctx: Context,
     location: android.location.Location,
     forceCallback: ((Double, Double) -> Unit)?,
-    convertToGcj: Boolean
+    convertToGcj: Boolean,
+    overwrite: Boolean = false
 ) {
     var finalLat = location.latitude
     var finalLng = location.longitude
@@ -154,7 +155,11 @@ private fun MainViewModel.applyNativeLocation(
         finalLng = gcj.longitude
     }
 
-    if (_uiState.value.longitudeInput.isEmpty() || _uiState.value.latitudeInput.isEmpty() || forceCallback != null) {
+    // 用户主动请求定位时必须覆盖旧坐标，否则会一直停在上一个位置；
+    // 后台静默刷新仍保留原有守卫，不会冲掉用户手动输入。
+    if (overwrite || forceCallback != null ||
+        _uiState.value.longitudeInput.isEmpty() || _uiState.value.latitudeInput.isEmpty()
+    ) {
         _uiState.update {
             it.copy(
                 latitudeInput = String.format("%.6f", finalLat),
