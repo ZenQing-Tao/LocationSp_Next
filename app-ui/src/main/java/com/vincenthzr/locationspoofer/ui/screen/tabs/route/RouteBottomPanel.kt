@@ -217,7 +217,7 @@ fun RouteBottomPanel(
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        text = if (uiState.routeRunMode == RouteRunMode.MANUAL) stringResource(R.string.joystick_controlling_active) else stringResource(R.string.cruising_speed_format, uiState.routeSimMode.speedMs.toInt()),
+                                        text = if (uiState.routeRunMode == RouteRunMode.MANUAL) stringResource(R.string.joystick_controlling_active) else stringResource(R.string.cruising_speed_format, (if (uiState.routeSimMode == com.vincenthzr.locationspoofer.data.model.SimMode.CUSTOM) uiState.customSpeedMs else uiState.routeSimMode.speedMs).toInt()),
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface

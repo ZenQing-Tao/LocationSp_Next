@@ -62,68 +62,73 @@ internal fun MainViewModel.fetchCurrentLocation(ctx: Context, forceCallback: ((D
 }
 
 @android.annotation.SuppressLint("MissingPermission")
-
 private fun MainViewModel.fallbackToNativeLocation(
     ctx: Context,
     forceCallback: ((Double, Double) -> Unit)?,
     convertToGcj: Boolean
 ) {
     try {
-        val locationManager =
-            ctx.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
-        val provider =
-            if (locationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
-                android.location.LocationManager.NETWORK_PROVIDER
-            } else {
-                android.location.LocationManager.GPS_PROVIDER
+        val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+        val providers = listOf(
+            android.location.LocationManager.GPS_PROVIDER,
+            android.location.LocationManager.NETWORK_PROVIDER
+        ).filter { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
+        if (providers.isEmpty()) {
+            if (forceCallback != null) {
+                android.widget.Toast.makeText(ctx, ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.waiting_gps_signal), android.widget.Toast.LENGTH_LONG).show()
             }
-
-        val lastLoc = locationManager.getLastKnownLocation(provider)
-        if (lastLoc != null) {
-            applyNativeLocation(ctx, lastLoc, forceCallback, convertToGcj)
-        } else if (forceCallback != null) {
-            android.widget.Toast.makeText(
-                ctx,
-                ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.waiting_gps_signal),
-                android.widget.Toast.LENGTH_LONG
-            ).show()
+            return
         }
 
-        val listener = object : android.location.LocationListener {
+        // 1) 只有足够新的缓存才先用：超过 15 秒或精度差于 50m 的缓存不采信，
+        //    避免“已经走了一段，点定位却还停在原点”。
+        val now = System.currentTimeMillis()
+        val cached = providers
+            .mapNotNull { provider -> runCatching { lm.getLastKnownLocation(provider) }.getOrNull() }
+            .filter { loc -> now - loc.time in 0..15_000L && (!loc.hasAccuracy() || loc.accuracy <= 50f) }
+            .maxByOrNull { it.time }
+        if (cached != null) {
+            applyNativeLocation(ctx, cached, forceCallback, convertToGcj)
+        } else if (forceCallback != null) {
+            android.widget.Toast.makeText(ctx, ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.waiting_gps_signal), android.widget.Toast.LENGTH_SHORT).show()
+        }
+
+        // 2) 请求一次新鲜定位：只接受 30 秒内且精度优于 100m 的结果，否则继续等。
+        var settled = false
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        lateinit var listener: android.location.LocationListener
+        listener = object : android.location.LocationListener {
             override fun onLocationChanged(location: android.location.Location) {
+                if (settled) return
+                val fresh = System.currentTimeMillis() - location.time in 0..30_000L
+                val accurate = !location.hasAccuracy() || location.accuracy <= 100f
+                if (!fresh || !accurate) return
+                settled = true
+                runCatching { lm.removeUpdates(this) }
+                handler.removeCallbacksAndMessages(null)
                 if (forceCallback != null) {
-                    android.widget.Toast.makeText(
-                        ctx,
-                        ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.native_location_success),
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    android.widget.Toast.makeText(ctx, ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.native_location_success), android.widget.Toast.LENGTH_SHORT).show()
                 }
                 applyNativeLocation(ctx, location, forceCallback, convertToGcj)
-                locationManager.removeUpdates(this)
             }
 
-            override fun onStatusChanged(
-                provider: String?,
-                status: Int,
-                extras: android.os.Bundle?
-            ) {
-            }
-
+            override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
             override fun onProviderEnabled(provider: String) {}
             override fun onProviderDisabled(provider: String) {}
         }
-        locationManager.requestSingleUpdate(
-            provider,
-            listener,
-            android.os.Looper.getMainLooper()
-        )
+        providers.forEach { provider ->
+            runCatching { lm.requestLocationUpdates(provider, 0L, 0f, listener, android.os.Looper.getMainLooper()) }
+        }
+        // 3) 8 秒仍未拿到合格新点时停止监听，不把旧点当成“当前定位”
+        handler.postDelayed({
+            if (!settled) {
+                settled = true
+                runCatching { lm.removeUpdates(listener) }
+            }
+        }, 8_000L)
     } catch (e: SecurityException) {
         if (forceCallback != null) {
-            android.widget.Toast.makeText(
-                ctx,
-                ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.location_permission_denied),
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+            android.widget.Toast.makeText(ctx, ctx.getString(com.vincenthzr.locationspoofer.ui.R.string.location_permission_denied), android.widget.Toast.LENGTH_SHORT).show()
         }
     } catch (e: Exception) {
         e.printStackTrace()
