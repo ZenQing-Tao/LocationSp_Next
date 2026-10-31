@@ -19,7 +19,8 @@ import com.vincenthzr.locationspoofer.ui.theme.noRippleClickable
 @Composable
 fun MapControlButton(
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Box(
         modifier = Modifier
@@ -27,9 +28,9 @@ fun MapControlButton(
             .shadow(4.dp, RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
-            .noRippleClickable(onClick = onClick),
+            .noRippleClickable(onClick = { if (enabled) onClick() }),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = AccentBlue, modifier = Modifier.size(22.dp))
+        Icon(icon, null, tint = if (enabled) AccentBlue else AccentBlue.copy(alpha = 0.30f), modifier = Modifier.size(22.dp))
     }
 }

@@ -26,11 +26,12 @@ class MotionRealismTest {
         val c = MotionRealism.Session(start + 1, MotionRealism.Level.HIGH, 20)
         assertEquals(a.distance(3.0, 777.0), b.distance(3.0, 777.0), 0.0)
         assertEquals(a.steps(160.0, 777.0), b.steps(160.0, 777.0), 0.0)
-        assertNotEquals(a.distance(3.0, 777.0), c.distance(3.0, 777.0), 1e-6)
+        // 距离/步数已改为严格线性，跨进程一致性改由瞬时速度保证
+        assertNotEquals(a.speed(3.0, 777.0), c.speed(3.0, 777.0), 1e-6)
     }
 
     @Test
-    fun `speed stays within the configured fluctuation and matches the distance derivative`() {
+    fun `speed fluctuates but distance stays strictly linear`() {
         val s = MotionRealism.Session(start, MotionRealism.Level.MEDIUM, 20)
         var sawVariation = false
         for (t in 0..3600 step 7) {
@@ -38,8 +39,10 @@ class MotionRealismTest {
             assertTrue("speed $v at $t", v in 3.0 * 0.8 - 1e-9..3.0 * 1.2 + 1e-9)
             if (abs(v - 3.0) > 0.1) sawVariation = true
             val h = 1e-3
+            // 距离必须严格线性，配速由距离/时间反推，不能被噪声污染
             val derivative = (s.distance(3.0, t + h) - s.distance(3.0, t.toDouble())) / h
-            assertEquals(v, derivative, 1e-3)
+            assertEquals(3.0, derivative, 1e-6)
+            assertEquals(3.0 * t.toDouble(), s.distance(3.0, t.toDouble()), 1e-9)
         }
         assertTrue(sawVariation)
     }

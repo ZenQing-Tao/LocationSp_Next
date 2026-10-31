@@ -269,6 +269,14 @@ fun LocationTab(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 // 悬浮功能按钮（主动避让底部面板，在面板高度变化时平滑跟随）
+                // 原生定位冷却：点击后 3 秒内按钮置灰且忽略重复点击
+                var locateCooling by remember { mutableStateOf(false) }
+                androidx.compose.runtime.LaunchedEffect(locateCooling) {
+                    if (locateCooling) {
+                        kotlinx.coroutines.delay(3_000L)
+                        locateCooling = false
+                    }
+                }
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -278,9 +286,13 @@ fun LocationTab(
                 ) {
                     MapControlButton(
                         icon = Icons.Rounded.MyLocation,
+                        enabled = !locateCooling,
                         onClick = {
-                            viewModel.fetchCurrentLocation(context) { lat, lng ->
-                                mapController?.animateCamera(lat, lng, 16f)
+                            if (!locateCooling) {
+                                locateCooling = true
+                                viewModel.fetchCurrentLocation(context) { lat, lng ->
+                                    mapController?.animateCamera(lat, lng, 16f)
+                                }
                             }
                         }
                     )

@@ -97,20 +97,27 @@ object MotionRealism {
         fun speed(baseSpeed: Double, elapsedSec: Double): Double =
             baseSpeed * (1 + fluctuation * speedNoise.value(elapsedSec))
 
-        /** 从开始到 elapsedSec 的累计行进距离（米） */
+        /**
+         * 从开始到 elapsedSec 的累计行进距离（米）。
+         * 必须严格等于 baseSpeed × elapsedSec：跑步/导航类 App 用相邻定位点位移反推配速，
+         * 噪声积分不是零均值，几分钟内会系统性偏正（实测多算 20~30%），表现为配速虚高。
+         * 噪声只用于瞬时速度、海拔与传感器波形。
+         */
         fun distance(baseSpeed: Double, elapsedSec: Double): Double =
-            baseSpeed * (elapsedSec + fluctuation * speedNoise.integral(elapsedSec))
+            baseSpeed * elapsedSec
 
         fun cadence(baseCadenceSpm: Double, elapsedSec: Double): Double = baseCadenceSpm * (
             1 + CADENCE_SHARE_OF_SPEED * fluctuation * speedNoise.value(elapsedSec) +
                 level.cadenceVariation * cadenceNoise.value(elapsedSec)
             )
 
-        /** 从开始到 elapsedSec 的累计步数（连续值，整数部分是步数，小数部分是当前这一步的相位） */
-        fun steps(baseCadenceSpm: Double, elapsedSec: Double): Double = baseCadenceSpm / 60.0 * (
-            elapsedSec + CADENCE_SHARE_OF_SPEED * fluctuation * speedNoise.integral(elapsedSec) +
-                level.cadenceVariation * cadenceNoise.integral(elapsedSec)
-            )
+        /**
+         * 从开始到 elapsedSec 的累计步数（连续值）。
+         * 步数必须与距离一致：校园跑类 App 常用「步数×步长」与 GPS 里程互校，
+         * 步数叠加独立噪声会与里程脱钩，被判定无效运动并剔除采样点，导致配速虚高。
+         */
+        fun steps(baseCadenceSpm: Double, elapsedSec: Double): Double =
+            baseCadenceSpm / 60.0 * elapsedSec
 
         /**
          * 加速度计读数（含重力，m/s²），坐标约定：Z 竖直、Y 前后、X 左右。
