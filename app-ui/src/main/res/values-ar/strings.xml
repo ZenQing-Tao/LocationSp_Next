@@ -473,4 +473,6 @@
     <string name="fatigue_strong">قوي</string>
     <string name="first_km_title">تسريع الكيلومتر الأول</string>
     <string name="first_km_desc">وضع المسار فقط. ابدأ أسرع قليلاً ثم عد إلى السرعة المستهدفة.</string>
+    <string name="fatigue_start_title">ابدأ التباطؤ بعد</string>
+    <string name="fatigue_start_desc">تبدأ السرعة بالتراجع بعد هذه المسافة. منزلة عشرية واحدة، ولا علاقة بطول المسار.</string>
 </resources>

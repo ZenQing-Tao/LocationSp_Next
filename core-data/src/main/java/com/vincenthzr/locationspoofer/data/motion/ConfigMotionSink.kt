@@ -49,7 +49,7 @@ class ConfigMotionSink(
             json.put("pace_variation_sec", preset.paceVariationSec)
             json.put("fatigue_level", preset.fatigueLevel)
             json.put("first_km_bias_sec", preset.firstKmBiasSec)
-            json.put("route_length_m", preset.routeLengthM)
+            json.put("fatigue_start_km", preset.fatigueStartKm)
         }
     }
 

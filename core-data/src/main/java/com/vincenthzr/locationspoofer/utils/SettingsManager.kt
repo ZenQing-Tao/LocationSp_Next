@@ -170,6 +170,14 @@ class SettingsManager(context: Context) {
         get() = prefs.getInt("first_km_bias_sec", 0)
         set(value) = prefs.edit().putInt("first_km_bias_sec", value.coerceIn(-30, 0)).apply()
 
+    /**
+     * 3.2.0 配速曲线：开始掉速的里程（公里，保留一位小数，默认 "2.0"）。
+     * 用字符串存是为了让输入框能保留用户正在编辑的半截内容（如 "2."）。
+     */
+    var fatigueStartKm: String
+        get() = prefs.getString("fatigue_start_km", "2.0") ?: "2.0"
+        set(value) = prefs.edit().putString("fatigue_start_km", value).apply()
+
     /** 录制的个人步态模板（GaitTemplate.encode() 的结果），空串表示未录制 */
     var gaitTemplate: String
         get() = prefs.getString("gait_template", "") ?: ""

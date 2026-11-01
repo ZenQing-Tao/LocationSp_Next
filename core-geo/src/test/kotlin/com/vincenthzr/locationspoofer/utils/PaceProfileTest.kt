@@ -24,14 +24,14 @@ class PaceProfileTest {
         variation: Double = 0.0,
         fatigue: Fatigue = Fatigue.OFF,
         firstBias: Double = 0.0,
-        routeLength: Double = 0.0,
+        fatigueStartKm: Double = PaceProfile.DEFAULT_FATIGUE_START_KM,
         seed: Long = 12345L
     ) = PaceProfile(
         baseSpeedMps = baseSpeed,
         perKmVariationSec = variation,
         fatigue = fatigue,
         firstKmBiasSec = firstBias,
-        routeLengthM = routeLength,
+        fatigueStartKm = fatigueStartKm,
         seed = seed
     )
 
@@ -45,7 +45,7 @@ class PaceProfileTest {
 
     @Test
     fun `kilometer boundaries map back to exact distance`() {
-        val p = profile(variation = 5.0, fatigue = Fatigue.WEAK, firstBias = -3.0, routeLength = 10_000.0)
+        val p = profile(variation = 5.0, fatigue = Fatigue.WEAK, firstBias = -3.0, fatigueStartKm = 2.0)
         for (k in 0..10) {
             val t = p.elapsedAt(k * 1000.0)
             assertEquals(k * 1000.0, p.distanceAt(t), 1e-6)
@@ -54,7 +54,7 @@ class PaceProfileTest {
 
     @Test
     fun `segment duration equals its pace`() {
-        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 10_000.0)
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 2.0)
         for (k in 0..8) {
             val t0 = p.elapsedAt(k * 1000.0)
             val t1 = p.elapsedAt((k + 1) * 1000.0)
@@ -72,9 +72,9 @@ class PaceProfileTest {
 
     @Test
     fun `weak fatigue decays each kilometer within 3 to 8 seconds`() {
-        val p = profile(fatigue = Fatigue.WEAK, routeLength = 10_000.0)
-        val startKm = kotlin.math.ceil(10.0 * PaceProfile.FATIGUE_START_FRACTION).toInt()
-        for (k in startKm + 1..9) {
+        val p = profile(fatigue = Fatigue.WEAK, fatigueStartKm = 2.0)
+        val startSegment = kotlin.math.ceil(PaceProfile.DEFAULT_FATIGUE_START_KM).toInt()
+        for (k in startSegment..9) {
             val decay = p.paceSecPerKm(k) - p.paceSecPerKm(k - 1)
             assertTrue("k=$k decay=$decay", decay in 3.0 - 1e-6..8.0 + 1e-6)
         }
@@ -84,9 +84,9 @@ class PaceProfileTest {
 
     @Test
     fun `strong fatigue decays each kilometer within 5 to 15 seconds`() {
-        val p = profile(fatigue = Fatigue.STRONG, routeLength = 10_000.0)
-        val startKm = kotlin.math.ceil(10.0 * PaceProfile.FATIGUE_START_FRACTION).toInt()
-        for (k in startKm + 1..9) {
+        val p = profile(fatigue = Fatigue.STRONG, fatigueStartKm = 2.0)
+        val startSegment = kotlin.math.ceil(PaceProfile.DEFAULT_FATIGUE_START_KM).toInt()
+        for (k in startSegment..9) {
             val decay = p.paceSecPerKm(k) - p.paceSecPerKm(k - 1)
             assertTrue("k=$k decay=$decay", decay in 5.0 - 1e-6..15.0 + 1e-6)
         }
@@ -105,7 +105,7 @@ class PaceProfileTest {
 
     @Test
     fun `steps are strongly bound to distance`() {
-        val p = profile(variation = 10.0, fatigue = Fatigue.WEAK, firstBias = -3.0, routeLength = 10_000.0)
+        val p = profile(variation = 10.0, fatigue = Fatigue.WEAK, firstBias = -3.0, fatigueStartKm = 2.0)
         // 单段内：步数 × 步幅 == 距离
         assertEquals(1000.0, p.stepsAt(1000.0) * p.strideM(0), 1e-6)
         // 跨段连续：1500m 的步数 == 1000m 的步数 + 500m 用第 1 段步幅算出的步数
@@ -117,7 +117,7 @@ class PaceProfileTest {
 
     @Test
     fun `edge distances do not crash`() {
-        val p = profile(variation = 10.0, fatigue = Fatigue.WEAK, firstBias = -3.0, routeLength = 300.0)
+        val p = profile(variation = 10.0, fatigue = Fatigue.WEAK, firstBias = -3.0, fatigueStartKm = 0.3)
         assertEquals(0.0, p.distanceAt(0.0), 0.0)
         assertEquals(0.0, p.stepsAt(0.0), 0.0)
         assertEquals(0.0, p.elapsedAt(0.0), 0.0)
@@ -127,7 +127,7 @@ class PaceProfileTest {
 
     @Test
     fun `resume from offset keeps the pace curve continuous`() {
-        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 5000.0)
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 2.0)
         val continuous = p.distanceAt(p.elapsedAt(1200.0) + 90.0)
         val resumed = p.distanceAfter(1200.0, 90.0)
         assertEquals(continuous, resumed, 1e-9)
@@ -143,7 +143,7 @@ class PaceProfileTest {
 
     @Test
     fun `kilometer table grows beyond the first segment`() {
-        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 10_000.0)
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 2.0)
         // 走完 2 km 所需时间 = 前两段的配速之和
         val twoKmSeconds = p.paceSecPerKm(0) + p.paceSecPerKm(1)
         // 用这段时间跑，必须正好落在 2000 米
@@ -152,14 +152,14 @@ class PaceProfileTest {
 
     @Test
     fun `distance after two kilometers matches the sum of segment paces`() {
-        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 10_000.0)
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 2.0)
         val fiveKmSeconds = (0..4).sumOf { p.paceSecPerKm(it) }
         assertEquals(5000.0, p.distanceAfter(0.0, fiveKmSeconds), 1e-6)
     }
 
     @Test
     fun `later kilometers use their own pace not the first one`() {
-        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 10_000.0)
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 2.0)
         // 第 2 公里的配速必须与第 1 公里不同（否则说明整条曲线退化成单一速度）
         assertNotEquals(p.paceSecPerKm(0), p.paceSecPerKm(1), 1e-9)
         // 且随着力竭累积，第 6 公里必须比第 1 公里慢
@@ -167,20 +167,20 @@ class PaceProfileTest {
     }
 
     @Test
-    fun `fatigue only starts after the configured fraction of the route`() {
-        val p = profile(fatigue = Fatigue.WEAK, routeLength = 10_000.0)
-        val startKm = kotlin.math.ceil(10.0 * PaceProfile.FATIGUE_START_FRACTION).toInt()
+    fun `fatigue starts at the configured kilometer and not before`() {
+        val p = profile(fatigue = Fatigue.WEAK, fatigueStartKm = 2.0)
+        val startSegment = kotlin.math.ceil(2.0).toInt()
         // 起点之前（含）配速保持基准值
-        for (k in 0..startKm) {
+        for (k in 0 until startSegment) {
             assertEquals(basePace, p.paceSecPerKm(k), 1e-9)
         }
         // 起点之后开始变慢
-        assertTrue(p.paceSecPerKm(startKm + 1) > basePace)
+        assertTrue(p.paceSecPerKm(startSegment) > basePace)
     }
 
     @Test
     fun `distance and elapsed time remain mutual inverses over a long route`() {
-        val p = profile(variation = 15.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 20_000.0)
+        val p = profile(variation = 15.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 2.0)
         var d = 0.0
         while (d <= 20_000.0) {
             assertEquals(d, p.distanceAt(p.elapsedAt(d)), 1e-6)
@@ -190,7 +190,7 @@ class PaceProfileTest {
 
     @Test
     fun `distanceAfter is equivalent to distanceAt shifted by the offset`() {
-        val p = profile(variation = 15.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 20_000.0)
+        val p = profile(variation = 15.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 2.0)
         var from = 0.0
         while (from <= 15_000.0) {
             val direct = p.distanceAt(p.elapsedAt(from) + 90.0)
@@ -201,13 +201,13 @@ class PaceProfileTest {
 
     @Test
     fun `fromConfig produces the same curve as the explicit constructor`() {
-        val explicit = profile(variation = 10.0, fatigue = Fatigue.WEAK, firstBias = -3.0, routeLength = 10_000.0, seed = 4242L)
+        val explicit = profile(variation = 10.0, fatigue = Fatigue.WEAK, firstBias = -3.0, fatigueStartKm = 2.0, seed = 4242L)
         val viaFactory = PaceProfile.fromConfig(
             baseSpeedMps = baseSpeed,
             paceVariationSec = 10.0,
             fatigueLevel = Fatigue.WEAK.level,
             firstKmBiasSec = -3.0,
-            routeLengthM = 10_000.0,
+            fatigueStartKm = 2.0,
             seed = 4242L
         )
         for (k in 0..8) {
@@ -229,5 +229,24 @@ class PaceProfileTest {
         assertEquals(Fatigue.WEAK, Fatigue.fromLevel(1))
         assertEquals(Fatigue.STRONG, Fatigue.fromLevel(2))
         assertEquals(Fatigue.OFF, Fatigue.fromLevel(0))
+    }
+
+    @Test
+    fun `fatigue start is an absolute distance independent of route length`() {
+        // 旧实现用“路线总长的 40%”：换一条路线，衰减起点就变；现在只看绝对里程。
+        val a = PaceProfile.fromConfig(baseSpeedMps = baseSpeed, fatigueLevel = 2, fatigueStartKm = 3.0, seed = 7L)
+        val b = PaceProfile.fromConfig(baseSpeedMps = baseSpeed, fatigueLevel = 2, fatigueStartKm = 3.0, seed = 7L)
+        for (k in 0..9) assertEquals(a.paceSecPerKm(k), b.paceSecPerKm(k), 0.0)
+        // 3.0 km 起点 → idx >= 3 才开始衰减
+        assertEquals(basePace, a.paceSecPerKm(2), 1e-9)
+        assertTrue(a.paceSecPerKm(3) > basePace)
+    }
+
+    @Test
+    fun `fatigue start with one decimal rounds up to the next full kilometer`() {
+        val p = PaceProfile.fromConfig(baseSpeedMps = baseSpeed, fatigueLevel = 1, fatigueStartKm = 2.5, seed = 11L)
+        // ceil(2.5) = 3 → 前三段（0..2）不衰减，第 4 公里（idx=3）开始
+        assertEquals(basePace, p.paceSecPerKm(2), 1e-9)
+        assertTrue(p.paceSecPerKm(3) > basePace)
     }
 }

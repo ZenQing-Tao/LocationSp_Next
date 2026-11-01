@@ -79,6 +79,8 @@ data class AppState(
     val fatigueLevel: Int = 0,
     /** 3.2.0 配速曲线：首公里偏快（秒，负数=更快） */
     val firstKmBiasSec: Int = 0,
+    /** 3.2.0 配速曲线：开始掉速的里程（公里，一位小数字符串） */
+    val fatigueStartKm: String = "2.0",
     /** 已录制步态模板的步频（步/分钟），null 表示尚未录制 */
     val gaitTemplateCadence: Int? = null,
     val gaitTemplateStrides: Int = 0,

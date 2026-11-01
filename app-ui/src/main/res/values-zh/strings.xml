@@ -661,4 +661,6 @@
     <string name="fatigue_strong">强</string>
     <string name="first_km_title">首公里偏快</string>
     <string name="first_km_desc">仅路线模式。起步略快，之后回落到目标配速。</string>
+    <string name="fatigue_start_title">开始掉速于</string>
+    <string name="fatigue_start_desc">跑过该里程后，接下来的完整每公里开始变慢。支持一位小数，与路线长短无关。</string>
 </resources>

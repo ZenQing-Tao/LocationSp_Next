@@ -157,15 +157,15 @@ object RouteEngine {
         val variation = config.optDouble("pace_variation_sec", 0.0)
         val fatigue = config.optInt("fatigue_level", 0)
         val firstBias = config.optDouble("first_km_bias_sec", 0.0)
-        val routeLength = config.optDouble("route_length_m", 0.0)
-        val key = "$speed|$variation|$fatigue|$firstBias|$routeLength|$startTime"
+        val fatigueStart = config.optDouble("fatigue_start_km", PaceProfile.DEFAULT_FATIGUE_START_KM)
+        val key = "$speed|$variation|$fatigue|$firstBias|$fatigueStart|$startTime"
         cachedProfile?.let { if (cachedProfileKey == key) return it }
         val built = PaceProfile.fromConfig(
             baseSpeedMps = speed.coerceAtLeast(0.1),
             paceVariationSec = variation,
             fatigueLevel = fatigue,
             firstKmBiasSec = firstBias,
-            routeLengthM = routeLength,
+            fatigueStartKm = fatigueStart,
             seed = startTime
         )
         cachedProfile = built

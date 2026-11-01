@@ -13,6 +13,7 @@ import com.vincenthzr.locationspoofer.data.model.GaitRecordingState
 import com.vincenthzr.locationspoofer.utils.AccelSample
 import com.vincenthzr.locationspoofer.utils.GaitTemplate
 import com.vincenthzr.locationspoofer.utils.MotionRealism
+import com.vincenthzr.locationspoofer.utils.PaceProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
@@ -49,6 +50,29 @@ internal fun MainViewModel.setFirstKmBiasSec(sec: Int) {
     val value = sec.coerceIn(-30, 0)
     settingsRepository.firstKmBiasSec = value
     _uiState.update { it.copy(firstKmBiasSec = value) }
+}
+
+/**
+ * 开始掉速的里程（公里）。输入框只允许一位小数，这里做与 UI 一致的格式与范围校验：
+ * 只接受空串、数字、单个小数点、最多两位整数、最多一位小数，且不超过 42.0。
+ * 非法内容直接忽略（不落盘），避免把 “2.” 这种半截输入存进设置。
+ */
+internal fun MainViewModel.setFatigueStartKm(raw: String) {
+    val filtered = raw.filter { it.isDigit() || it == '.' }
+    if (filtered != raw) return
+    val dots = raw.count { it == '.' }
+    if (dots > 1) return
+    val dot = raw.indexOf('.')
+    if (dot >= 0) {
+        if (raw.length - dot - 1 > 1) return
+        if (raw.substring(0, dot).length > 2) return
+    } else if (raw.length > 2) {
+        return
+    }
+    val parsed = raw.toDoubleOrNull()
+    if (parsed != null && parsed > PaceProfile.MAX_FATIGUE_START_KM) return
+    settingsRepository.fatigueStartKm = raw
+    _uiState.update { it.copy(fatigueStartKm = raw) }
 }
 
 internal fun MainViewModel.setUseGaitTemplate(enabled: Boolean) {

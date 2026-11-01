@@ -223,6 +223,13 @@ class SettingsRepository(private val settingsManager: SettingsManager) {
             settingsManager.firstKmBiasSec = value
         }
 
+    /** 3.2.0 配速曲线：开始掉速的里程（公里，一位小数字符串） */
+    var fatigueStartKm: String
+        get() = settingsManager.fatigueStartKm
+        set(value) {
+            settingsManager.fatigueStartKm = value
+        }
+
     var gaitTemplate: String
         get() = settingsManager.gaitTemplate
         set(value) {

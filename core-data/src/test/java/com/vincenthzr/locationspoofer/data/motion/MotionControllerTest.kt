@@ -228,7 +228,7 @@ class MotionControllerTest {
             paceVariationSec = 10.0,
             fatigueLevel = 0,
             firstKmBiasSec = 0.0,
-            routeLengthM = 10_000.0,
+            fatigueStartKm = 2.0,
             seed = now
         )
         val paces = (0..4).map { profile.paceSecPerKm(it) }
@@ -243,7 +243,7 @@ class MotionControllerTest {
             paceVariationSec = 0.0,
             fatigueLevel = 2,
             firstKmBiasSec = 0.0,
-            routeLengthM = 10_000.0,
+            fatigueStartKm = 2.0,
             seed = now
         )
         // 力竭从 40%（第 4 公里）之后开始，第 6 公里必须已经变慢且继续变慢

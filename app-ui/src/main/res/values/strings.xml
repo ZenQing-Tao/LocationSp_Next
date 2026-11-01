@@ -661,4 +661,6 @@ Error details: %s</string>
     <string name="fatigue_strong">Strong</string>
     <string name="first_km_title">First kilometer boost</string>
     <string name="first_km_desc">Route mode only. Start slightly faster, then settle into the target pace.</string>
+    <string name="fatigue_start_title">Slow down after</string>
+    <string name="fatigue_start_desc">Pace starts decaying after this distance. One decimal place, route length does not matter.</string>
 </resources>

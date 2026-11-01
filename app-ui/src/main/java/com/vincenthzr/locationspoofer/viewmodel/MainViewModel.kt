@@ -84,6 +84,7 @@ class MainViewModel(
             paceVariationSec = settingsRepository.paceVariationSec,
             fatigueLevel = settingsRepository.fatigueLevel,
             firstKmBiasSec = settingsRepository.firstKmBiasSec,
+            fatigueStartKm = settingsRepository.fatigueStartKm,
             gaitTemplateCadence = GaitTemplate.decode(settingsRepository.gaitTemplate)?.cadenceSpm,
             gaitTemplateStrides = GaitTemplate.decode(settingsRepository.gaitTemplate)?.strideCount ?: 0,
             useGaitTemplate = settingsRepository.useGaitTemplate,

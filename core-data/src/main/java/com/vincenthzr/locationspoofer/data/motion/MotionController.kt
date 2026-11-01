@@ -75,8 +75,8 @@ class MotionController(
         val fatigueLevel: Int = 0,
         /** 第一公里偏快（秒，负数=更快） */
         val firstKmBiasSec: Double = 0.0,
-        /** 路线总长（米） */
-        val routeLengthM: Double = 0.0
+        /** 开始掉速的里程（公里，绝对量）；跑过该里程后逐公里变慢 */
+        val fatigueStartKm: Double = 2.0
     )
 
     data class State(
@@ -173,10 +173,6 @@ class MotionController(
     ) {
         val routePath = RoutePath(points.map { LatLng(it.lat, it.lng) })
         if (!routePath.isValid) return
-        // 路线总长决定力竭起点：界面没传时用实际路径长度兜底。
-        // 这一步必须在这里做，否则下发给 Xposed 的 route_length_m 会是 0，两端曲线不一致。
-        val effectivePreset =
-            if (preset.routeLengthM > 0.0) preset else preset.copy(routeLengthM = routePath.totalDistance)
         path = routePath
         this.stopAtDestination = stopAtDestination
         routeStartTs = startTimestamp
@@ -198,7 +194,7 @@ class MotionController(
                 hasRoute = true,
                 paused = startPaused,
                 returning = false,
-                preset = effectivePreset
+                preset = preset
             )
         }
         invalidateProfile()
@@ -274,20 +270,15 @@ class MotionController(
 
     fun setSpeedPreset(preset: SpeedPreset) {
         val s = _state.value
-        // 路线总长是力竭起点与下发字段的依据：界面未传时沿用实际路径长度，
-        // 否则换档位会把 onRouteStarted 里补好的长度覆盖成 0，两端力竭曲线同时失效。
-        val effectivePreset =
-            if (preset.routeLengthM > 0.0) preset
-            else preset.copy(routeLengthM = path?.totalDistance ?: 0.0)
         if (s.mode == Mode.ROUTE && path != null) {
             // 换速度会改变"累计距离随时间的函数"，先把已走的距离固定为偏移，再按新速度从当前时刻继续
             val now = clock()
             routeOffset = traveledAt(now)
             routeStartTs = now
-            _state.update { it.copy(preset = effectivePreset) }
+            _state.update { it.copy(preset = preset) }
             requestRouteWrite(now)
         } else {
-            _state.update { it.copy(preset = effectivePreset) }
+            _state.update { it.copy(preset = preset) }
         }
     }
 
@@ -356,7 +347,7 @@ class MotionController(
             paceVariationSec = preset.paceVariationSec,
             fatigueLevel = preset.fatigueLevel,
             firstKmBiasSec = preset.firstKmBiasSec,
-            routeLengthM = preset.routeLengthM,
+            fatigueStartKm = preset.fatigueStartKm,
             seed = routeStartTs
         )
         cachedProfile = built

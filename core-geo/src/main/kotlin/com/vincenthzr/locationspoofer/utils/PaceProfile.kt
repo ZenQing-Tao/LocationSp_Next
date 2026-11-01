@@ -13,6 +13,8 @@ package com.vincenthzr.locationspoofer.utils
  * 数据流：
  * ```
  * pace_k = clamp(basePace + wobble_k + fatigue_k + firstKmBias_k)   // 单位：秒/公里
+ * fatigue_k = 0                                        (k < 起始段)
+ *           = min(sum(decay_i), 90s)                    (k >= 起始段)
  * speed_k = 1000 / pace_k                                          // 米/秒
  * t_k     = t_{k-1} + pace_{k-1}                                   // 第 k 公里起始时刻
  * distanceAt(t) = k*1000 + speed_k * (t - t_k)                     // 段内匀速
@@ -47,8 +49,14 @@ class PaceProfile(
     private val fatigue: Fatigue = Fatigue.OFF,
     /** 第一公里偏快（负数=更快），默认 -3 秒。 */
     private val firstKmBiasSec: Double = DEFAULT_FIRST_KM_BIAS_SEC,
-    /** 整条路线长度（米），用于确定力竭起始点；<=0 表示未知（则不启用衰减）。 */
-    private val routeLengthM: Double = 0.0,
+    /**
+     * 开始掉速的里程（公里，绝对量）。跑过这个公里数后，接下来完整的每公里开始衰减。
+     *
+     * 旧实现用的是“路线总长的 40%”，但路线模式是循环/折返的、没有终点，
+     * “全程”在循环模式下没有物理意义（同样开“强”，换条路线衰减起点就变）。
+     * 真实跑步的疲劳取决于已跑里程，因此改为绝对公里数。
+     */
+    private val fatigueStartKm: Double = DEFAULT_FATIGUE_START_KM,
     /** 随机种子，调用方统一传路线开始时间戳。 */
     private val seed: Long = 0L,
     /** 步频基准偏移（0 表示使用速度线性映射）。 */
@@ -60,6 +68,10 @@ class PaceProfile(
     }
 
     private val basePaceSec: Double = 1000.0 / baseSpeedMps
+
+    /** 第一个需要衰减的公里段（idx >= 此值）；N=2.0 时第 3 公里（idx=2）开始掉速 */
+    private val fatigueStartSegment: Int =
+        kotlin.math.ceil(fatigueStartKm).toInt().coerceAtLeast(0)
 
     // 懒生成并按公里缓存：长路线（全马 42 km）只会生成 42 个数。
     private val wobbles = ArrayList<Double>(64)
@@ -181,7 +193,7 @@ class PaceProfile(
             wobbles.add(wobble)
 
             // ② 力竭：从总路程 40% 后开始，每公里从区间内取一个衰减值，累计封顶 90 秒
-            val decay = if (fatigue == Fatigue.OFF || routeLengthM <= 0.0 || idx <= fatigueStartKm()) {
+            val decay = if (fatigue == Fatigue.OFF || idx < fatigueStartSegment) {
                 0.0
             } else {
                 uniformFatigue(idx, fatigue.minSecPerKm, fatigue.maxSecPerKm)
@@ -202,9 +214,6 @@ class PaceProfile(
             starts.add(start)
         }
     }
-
-    private fun fatigueStartKm(): Int =
-        kotlin.math.ceil(routeLengthM / 1000.0 * FATIGUE_START_FRACTION).toInt()
 
     /** 确定性均匀分布 [-1, 1]，按 (seed, k) 生成，两端结果一致。 */
     private fun uniform(k: Int, min: Double, max: Double): Double {
@@ -235,22 +244,25 @@ class PaceProfile(
             paceVariationSec: Double = 0.0,
             fatigueLevel: Int = 0,
             firstKmBiasSec: Double = 0.0,
-            routeLengthM: Double = 0.0,
+            fatigueStartKm: Double = DEFAULT_FATIGUE_START_KM,
             seed: Long = 0L
         ): PaceProfile = PaceProfile(
             baseSpeedMps = baseSpeedMps,
             perKmVariationSec = paceVariationSec,
             fatigue = Fatigue.fromLevel(fatigueLevel),
             firstKmBiasSec = firstKmBiasSec,
-            routeLengthM = routeLengthM,
+            fatigueStartKm = fatigueStartKm,
             seed = seed
         )
 
         const val DEFAULT_VARIATION_SEC = 5.0
         const val DEFAULT_FIRST_KM_BIAS_SEC = -3.0
         const val MAX_FATIGUE_ACC_SEC = 90.0
-        /** 力竭起点：总路程的 40%。 */
-        const val FATIGUE_START_FRACTION = 0.4
+        /** 默认开始掉速的里程（公里）：跑过 2 km 后逐公里变慢 */
+        const val DEFAULT_FATIGUE_START_KM = 2.0
+        /** 允许的掉速起点范围（公里） */
+        const val MIN_FATIGUE_START_KM = 0.5
+        const val MAX_FATIGUE_START_KM = 42.0
         /** 配速夹逼范围：0.6~2.2 倍基准配速。 */
         const val MIN_PACE_RATIO = 0.6
         const val MAX_PACE_RATIO = 2.2
