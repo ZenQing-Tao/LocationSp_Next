@@ -202,6 +202,27 @@ class SettingsRepository(private val settingsManager: SettingsManager) {
             settingsManager.speedFluctuationPct = value
         }
 
+    /** 3.2.0 配速曲线：每公里配速浮动（秒），0 = 严格匀速 */
+    var paceVariationSec: Int
+        get() = settingsManager.paceVariationSec
+        set(value) {
+            settingsManager.paceVariationSec = value
+        }
+
+    /** 3.2.0 配速曲线：体力衰减 0 关 / 1 弱 / 2 强 */
+    var fatigueLevel: Int
+        get() = settingsManager.fatigueLevel
+        set(value) {
+            settingsManager.fatigueLevel = value
+        }
+
+    /** 3.2.0 配速曲线：首公里偏快（秒，负数=更快） */
+    var firstKmBiasSec: Int
+        get() = settingsManager.firstKmBiasSec
+        set(value) {
+            settingsManager.firstKmBiasSec = value
+        }
+
     var gaitTemplate: String
         get() = settingsManager.gaitTemplate
         set(value) {
