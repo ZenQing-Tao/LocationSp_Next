@@ -88,6 +88,51 @@ object RouteEngine {
     }
 
     /**
+     * 路线模式下“已行进距离”（米）：与 [calculateCurrentPosition] 同一公式，只算距离不插值坐标，
+     * 供步数换算使用。非路线模式返回 0。
+     */
+    fun traveledDistance(config: JSONObject, now: Long = System.currentTimeMillis()): Double {
+        if (!config.optBoolean("is_route_mode", false)) return 0.0
+        val routeArray = config.optJSONArray("route_points") ?: return 0.0
+        if (routeArray.length() < 2) return 0.0
+        val speed = config.optDouble("speed_m_s", 3.0).coerceAtLeast(0.1)
+        val rawStartTime = config.optLong("start_timestamp", 0L)
+        val startTime = if (rawStartTime > 0L) rawStartTime else now
+        val elapsedSec = (now - startTime).coerceAtLeast(0L) / 1000.0
+        val offset = config.optDouble("route_distance_offset", 0.0).coerceAtLeast(0.0)
+        return paceProfile(config, speed, startTime).distanceAfter(offset, elapsedSec)
+    }
+
+    /**
+     * 路线模式：自上次调用以来新增的步数（>= 0）。
+     *
+     * 步数由 [PaceProfile.stepsAt] 从累计距离换算（步数 × 步幅 = 距离），
+     * 因此换档位、暂停继续、开启力竭后都不会出现“步数涨得比里程快”。
+     * 里程归零（新的路线会话）时只重建基准、不返回负值，保证对外单调递增。
+     */
+    @Synchronized
+    fun routeStepDelta(config: JSONObject, now: Long = System.currentTimeMillis()): Double {
+        if (!config.optBoolean("is_route_mode", false)) return 0.0
+        val routeArray = config.optJSONArray("route_points") ?: return 0.0
+        if (routeArray.length() < 2) return 0.0
+        val speed = config.optDouble("speed_m_s", 3.0).coerceAtLeast(0.1)
+        val rawStartTime = config.optLong("start_timestamp", 0L)
+        val startTime = if (rawStartTime > 0L) rawStartTime else now
+        var distance = traveledDistance(config, now)
+        if (config.optBoolean("stop_at_destination", false)) {
+            // 到达终点后位置停住：里程必须一起停住，否则步数会一直涨而人不动
+            val total = routePath(routeArray).totalDistance
+            if (total > 0.0) distance = distance.coerceAtMost(total)
+        }
+        val profile = paceProfile(config, speed, startTime)
+        val raw = profile.stepsAt(distance)
+        val delta = if (distance < stepDistanceMark) 0.0 else (raw - stepRawMark).coerceAtLeast(0.0)
+        stepDistanceMark = distance
+        stepRawMark = raw
+        return delta
+    }
+
+    /**
      * 当前位置的海拔：基准海拔 ± 变化范围内随地形起伏，叠加随机强度对应的缓慢漂移（见 [AltitudeModel]），
      * 各进程对同一时刻给出一致的值。旧版配置没有变化范围字段时，按随机强度的漂移幅度处理。
      */
@@ -103,6 +148,10 @@ object RouteEngine {
     // 3.2.0 配速曲线：同一份配置只构造一次，参数或开始时刻变化时才重建（避免每个定位请求都新建对象）
     @Volatile private var cachedProfile: PaceProfile? = null
     @Volatile private var cachedProfileKey: String? = null
+
+    // 步数换算的上一采样点（里程 + 对应步数），仅本进程内维护
+    @Volatile private var stepDistanceMark = 0.0
+    @Volatile private var stepRawMark = 0.0
 
     private fun paceProfile(config: JSONObject, speed: Double, startTime: Long): PaceProfile {
         val variation = config.optDouble("pace_variation_sec", 0.0)

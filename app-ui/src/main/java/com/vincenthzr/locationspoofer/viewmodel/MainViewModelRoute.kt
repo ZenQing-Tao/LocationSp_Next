@@ -357,7 +357,14 @@ private fun MainViewModel.startSimulationWithPoints(pointsToRun: List<RoutePoint
             stepCadenceSpm = _uiState.value.stepCadenceSpm,
             isAutoCadence = _uiState.value.isAutoCadence
         )
-        val preset = MotionController.SpeedPreset(_uiState.value.routeSimMode.name, joystickMaxSpeedMs().toDouble())
+        // 3.2.0 配速曲线：把三项设置带进本次会话；route_length_m 由 MotionController 用实际路径长度兜底
+        val preset = MotionController.SpeedPreset(
+            name = _uiState.value.routeSimMode.name,
+            speedMs = joystickMaxSpeedMs().toDouble(),
+            paceVariationSec = _uiState.value.paceVariationSec.toDouble(),
+            fatigueLevel = _uiState.value.fatigueLevel,
+            firstKmBiasSec = _uiState.value.firstKmBiasSec.toDouble()
+        )
         // 手动模式同样加载路线，只是以暂停状态开始、由悬浮摇杆控制，点"开始"后沿路线前进
         motionController.onRouteStarted(pointsToRun, preset, _uiState.value.stopAtDestination, now, startPaused = !isLoop)
         // 悬浮摇杆只在手动模式下出现；停止模拟后它会随 MotionController 结束会话自行关闭

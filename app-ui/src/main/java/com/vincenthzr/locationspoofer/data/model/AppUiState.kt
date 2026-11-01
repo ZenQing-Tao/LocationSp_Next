@@ -73,6 +73,12 @@ data class AppState(
     val debugDumpSystemServices: Boolean = false,
     val realismLevel: Int = MotionRealism.DEFAULT_LEVEL_ID,
     val speedFluctuationPct: Int = MotionRealism.DEFAULT_SPEED_FLUCTUATION_PCT,
+    /** 3.2.0 配速曲线：每公里配速浮动（秒），0 = 严格匀速 */
+    val paceVariationSec: Int = 0,
+    /** 3.2.0 配速曲线：体力衰减 0 关 / 1 弱 / 2 强 */
+    val fatigueLevel: Int = 0,
+    /** 3.2.0 配速曲线：首公里偏快（秒，负数=更快） */
+    val firstKmBiasSec: Int = 0,
     /** 已录制步态模板的步频（步/分钟），null 表示尚未录制 */
     val gaitTemplateCadence: Int? = null,
     val gaitTemplateStrides: Int = 0,

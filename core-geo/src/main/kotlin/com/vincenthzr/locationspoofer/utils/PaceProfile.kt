@@ -141,25 +141,32 @@ class PaceProfile(
 
     // ---------------------------------------------------------------- 内部实现
 
+    /**
+     * 找出 [elapsedSec] 落在第几公里（k 从 0 开始）。
+     *
+     * 关键点：公里表必须能按需向后生长。旧实现把 `k` 初始化为 `paces.size - 1`，
+     * 而循环条件里带 `k == paces.size - 1` 的短路分支，导致条件恒真、循环体永不执行、
+     * `ensure(k + 1)` 永不调用——公里表永远停在 1 段，于是第 1 公里之后的
+     * 每公里浮动、力竭衰减、首公里偏快全部不生效（表现是“设了也没用”）。
+     *
+     * 现在改为：先按需把表补到覆盖 elapsedSec，再用二分定位落在哪一段。
+     */
     private fun kmIndexAt(elapsedSec: Double): Int {
         ensure(0) // 保证 starts 至少有第 0 段起点，避免空表越界
-        // 保证 starts 至少生成到能覆盖 elapsedSec 的位置
-        var k = (paces.size - 1).coerceAtLeast(0)
-        while (!(starts[k] <= elapsedSec && (k == paces.size - 1 || elapsedSec < starts[k + 1]))) {
-            if (elapsedSec < starts[k]) {
-                // 二分回退（极少发生：只在 elapsedSec 小于最新生成段的起点时）
-                var lo = 0
-                var hi = k
-                while (lo < hi) {
-                    val mid = (lo + hi) / 2
-                    if (starts[mid] <= elapsedSec) lo = mid + 1 else hi = mid
-                }
-                return (lo - 1).coerceAtLeast(0)
-            }
-            ensure(k + 1)
-            k++
+        // 表尚未覆盖 elapsedSec 时向后生长：第 k 段的结束时刻是 starts[k] + paces[k]
+        while (true) {
+            val last = paces.size - 1
+            if (elapsedSec < starts[last] + paces[last]) break
+            ensure(last + 1)
         }
-        return k
+        // 二分：找到最大的 k 使 starts[k] <= elapsedSec
+        var lo = 0
+        var hi = paces.size - 1
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (starts[mid] <= elapsedSec) lo = mid else hi = mid - 1
+        }
+        return lo
     }
 
     private fun ensure(k: Int) {

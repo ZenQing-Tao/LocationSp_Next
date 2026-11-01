@@ -32,6 +32,25 @@ internal fun MainViewModel.setSpeedFluctuationPct(pct: Int) {
     _uiState.update { it.copy(speedFluctuationPct = value) }
 }
 
+// 3.2.0 配速曲线：每公里浮动 / 体力衰减 / 首公里偏快，下一次开始模拟时生效
+internal fun MainViewModel.setPaceVariationSec(sec: Int) {
+    val value = sec.coerceIn(0, 30)
+    settingsRepository.paceVariationSec = value
+    _uiState.update { it.copy(paceVariationSec = value) }
+}
+
+internal fun MainViewModel.setFatigueLevel(level: Int) {
+    val value = level.coerceIn(0, 2)
+    settingsRepository.fatigueLevel = value
+    _uiState.update { it.copy(fatigueLevel = value) }
+}
+
+internal fun MainViewModel.setFirstKmBiasSec(sec: Int) {
+    val value = sec.coerceIn(-30, 0)
+    settingsRepository.firstKmBiasSec = value
+    _uiState.update { it.copy(firstKmBiasSec = value) }
+}
+
 internal fun MainViewModel.setUseGaitTemplate(enabled: Boolean) {
     settingsRepository.useGaitTemplate = enabled
     _uiState.update { it.copy(useGaitTemplate = enabled) }

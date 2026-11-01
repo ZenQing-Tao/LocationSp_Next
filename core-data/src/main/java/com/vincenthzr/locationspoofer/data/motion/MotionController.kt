@@ -202,6 +202,11 @@ class MotionController(
             )
         }
         invalidateProfile()
+        // 开局必须主动下发一次运动字段：路线启动走的是 ConfigManager 的通用配置，
+        // 不含配速曲线字段与 route_length_m，缺了它两端会退化成匀速、力竭不生效。
+        // 但手动模式（startPaused）此时还没开始走，配置里必须仍是"非路线模式"，
+        // 否则 Hook 端会按 start_timestamp 自动沿路线前进——人还站着，位置却自己在走。
+        if (!startPaused) requestRouteWrite(startTimestamp)
         ensureTicking()
     }
 

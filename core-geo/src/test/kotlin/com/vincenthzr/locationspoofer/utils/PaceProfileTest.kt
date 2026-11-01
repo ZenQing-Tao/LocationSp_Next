@@ -133,3 +133,101 @@ class PaceProfileTest {
         assertEquals(continuous, resumed, 1e-9)
     }
 }
+    // ==============================================================
+    // 回归：kmIndexAt 必须能把公里表推进到第 k 段
+    //
+    // 旧实现把 k 初始化为 paces.size - 1，循环条件里带 `k == paces.size - 1`
+    // 的短路分支，条件恒真导致 ensure(k + 1) 永不调用——公里表永远停在 1 段，
+    // 于是“第 1 公里之后的浮动 / 力竭 / 首公里偏快”全部静默失效。
+    // 这些用例在旧实现下会失败（见每条断言的说明）。
+    // ==============================================================
+
+    @Test
+    fun `kilometer table grows beyond the first segment`() {
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 10_000.0)
+        // 走完 2 km 所需时间 = 前两段的配速之和
+        val twoKmSeconds = p.paceSecPerKm(0) + p.paceSecPerKm(1)
+        // 用这段时间跑，必须正好落在 2000 米
+        assertEquals(2000.0, p.distanceAfter(0.0, twoKmSeconds), 1e-6)
+    }
+
+    @Test
+    fun `distance after two kilometers matches the sum of segment paces`() {
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 10_000.0)
+        val fiveKmSeconds = (0..4).sumOf { p.paceSecPerKm(it) }
+        assertEquals(5000.0, p.distanceAfter(0.0, fiveKmSeconds), 1e-6)
+    }
+
+    @Test
+    fun `later kilometers use their own pace not the first one`() {
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 10_000.0)
+        // 第 2 公里的配速必须与第 1 公里不同（否则说明整条曲线退化成单一速度）
+        assertNotEquals(p.paceSecPerKm(0), p.paceSecPerKm(1), 1e-9)
+        // 且随着力竭累积，第 6 公里必须比第 1 公里慢
+        assertTrue(p.paceSecPerKm(6) > p.paceSecPerKm(0))
+    }
+
+    @Test
+    fun `fatigue only starts after the configured fraction of the route`() {
+        val p = profile(fatigue = Fatigue.WEAK, routeLength = 10_000.0)
+        val startKm = kotlin.math.ceil(10.0 * PaceProfile.FATIGUE_START_FRACTION).toInt()
+        // 起点之前（含）配速保持基准值
+        for (k in 0..startKm) {
+            assertEquals(basePace, p.paceSecPerKm(k), 1e-9)
+        }
+        // 起点之后开始变慢
+        assertTrue(p.paceSecPerKm(startKm + 1) > basePace)
+    }
+
+    @Test
+    fun `distance and elapsed time remain mutual inverses over a long route`() {
+        val p = profile(variation = 15.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 20_000.0)
+        var d = 0.0
+        while (d <= 20_000.0) {
+            assertEquals(d, p.distanceAt(p.elapsedAt(d)), 1e-6)
+            d += 250.0
+        }
+    }
+
+    @Test
+    fun `distanceAfter is equivalent to distanceAt shifted by the offset`() {
+        val p = profile(variation = 15.0, fatigue = Fatigue.STRONG, firstBias = -3.0, routeLength = 20_000.0)
+        var from = 0.0
+        while (from <= 15_000.0) {
+            val direct = p.distanceAt(p.elapsedAt(from) + 90.0)
+            assertEquals(direct, p.distanceAfter(from, 90.0), 1e-9)
+            from += 500.0
+        }
+    }
+
+    @Test
+    fun `fromConfig produces the same curve as the explicit constructor`() {
+        val explicit = profile(variation = 10.0, fatigue = Fatigue.WEAK, firstBias = -3.0, routeLength = 10_000.0, seed = 4242L)
+        val viaFactory = PaceProfile.fromConfig(
+            baseSpeedMps = baseSpeed,
+            paceVariationSec = 10.0,
+            fatigueLevel = Fatigue.WEAK.level,
+            firstKmBiasSec = -3.0,
+            routeLengthM = 10_000.0,
+            seed = 4242L
+        )
+        for (k in 0..8) {
+            assertEquals(explicit.paceSecPerKm(k), viaFactory.paceSecPerKm(k), 0.0)
+        }
+    }
+
+    @Test
+    fun `fromConfig with neutral defaults degenerates to strict linear motion`() {
+        val p = PaceProfile.fromConfig(baseSpeedMps = baseSpeed, seed = 7L)
+        for (t in listOf(1.0, 60.0, 300.0, 600.0, 1800.0)) {
+            assertEquals(baseSpeed * t, p.distanceAt(t), 1e-6)
+        }
+    }
+
+    @Test
+    fun `unknown fatigue level falls back to off`() {
+        assertEquals(Fatigue.OFF, Fatigue.fromLevel(99))
+        assertEquals(Fatigue.WEAK, Fatigue.fromLevel(1))
+        assertEquals(Fatigue.STRONG, Fatigue.fromLevel(2))
+        assertEquals(Fatigue.OFF, Fatigue.fromLevel(0))
+    }

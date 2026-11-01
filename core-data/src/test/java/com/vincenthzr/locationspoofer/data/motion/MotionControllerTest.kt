@@ -3,6 +3,7 @@ package com.vincenthzr.locationspoofer.data.motion
 import com.vincenthzr.locationspoofer.data.model.RoutePoint
 import com.vincenthzr.locationspoofer.utils.CoordinateUtils.LatLng
 import com.vincenthzr.locationspoofer.utils.GeoMath
+import com.vincenthzr.locationspoofer.utils.PaceProfile
 import java.util.Collections
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -51,6 +52,13 @@ class MotionControllerTest {
     private val start = LatLng(30.0, 120.0)
     private val end = GeoMath.destination(start, 0.0, 1000.0) // 正北 1000 米
 
+    /**
+     * 3.2.0 起路线距离由 [PaceProfile] 权威计算：关闭所有起伏时是严格匀速，
+     * 即“距离 = 速度 × 经过时间”。这条不变量是下面所有距离断言的基础。
+     */
+    private fun expectedDistance(speedMs: Double, elapsedMs: Long): Double =
+        speedMs * (elapsedMs / 1000.0)
+
     private fun here() = LatLng(controller.state.value.lat, controller.state.value.lng)
 
     private fun startRoute() {
@@ -70,7 +78,7 @@ class MotionControllerTest {
     fun `route playback advances along the path`() {
         startRoute()
         advance(10_000)
-        assertEquals(20.0, GeoMath.distance(start, here()), 0.1)
+        assertEquals(expectedDistance(2.0, 10_000), GeoMath.distance(start, here()), 0.1)
         assertEquals(MotionController.Mode.ROUTE, controller.state.value.mode)
     }
 
@@ -79,7 +87,7 @@ class MotionControllerTest {
         startRoute()
         controller.joystick(90.0, 1f)
         advance(5_000)
-        assertEquals(10.0, GeoMath.distance(start, here()), 0.1) // 仍沿路线正北行进，没有被摇杆带偏
+        assertEquals(expectedDistance(2.0, 5_000), GeoMath.distance(start, here()), 0.1) // 仍沿路线正北行进，没有被摇杆带偏
     }
 
     @Test
@@ -127,7 +135,8 @@ class MotionControllerTest {
         }
         assertFalse(controller.state.value.returning)
         assertEquals(MotionController.Mode.ROUTE, controller.state.value.mode)
-        awaitUntil { sink.routes.isNotEmpty() }
+        // 3.2.0 起开局也会写一次 route（offset=0），因此要等“恢复后那一次”落盘再断言
+        awaitUntil { sink.routes.any { it.offset > 19.9 } }
         assertEquals(20.0, sink.routes.last().offset, 0.01)
 
         advance(5_000) // 接着原路线走：20 + 10 = 30 米
@@ -143,7 +152,7 @@ class MotionControllerTest {
         controller.tick(now)
         assertEquals(0.0, GeoMath.distance(before, here()), 0.01)
         advance(5_000)
-        assertEquals(40.0, GeoMath.distance(start, here()), 0.1) // 20 米 + 4 m/s × 5 秒
+        assertEquals(expectedDistance(4.0, 5_000) + 20.0, GeoMath.distance(start, here()), 0.1) // 20 米 + 4 m/s × 5 秒
     }
 
     @Test
@@ -195,7 +204,64 @@ class MotionControllerTest {
         assertEquals(0.0, sink.routes.last().offset, 1e-9)
 
         advance(5_000) // 然后沿路线正北前进 10 米
-        assertEquals(10.0, GeoMath.distance(start, here()), 0.1)
+        assertEquals(expectedDistance(2.0, 5_000), GeoMath.distance(start, here()), 0.1)
+    }
+
+    /**
+     * 3.2.0：路线模式下速度读数必须等于设定速度（不再叠加随机噪声），
+     * 这是“设 6'00" 实测 4'30"”这个 bug 的直接回归。
+     */
+    @Test
+    fun `route speed equals the configured speed without noise`() {
+        startRoute()
+        advance(10_000)
+        assertEquals(2.0, controller.state.value.speedMs, 1e-6)
+        advance(10_000)
+        assertEquals(2.0, controller.state.value.speedMs, 1e-6)
+    }
+
+    /** 3.2.0：配速浮动开启时，各公里配速不完全相同（曲线没有退化成单一速度） */
+    @Test
+    fun `pace variation gives different paces to different kilometers`() {
+        val profile = PaceProfile.fromConfig(
+            baseSpeedMps = 3.0,
+            paceVariationSec = 10.0,
+            fatigueLevel = 0,
+            firstKmBiasSec = 0.0,
+            routeLengthM = 10_000.0,
+            seed = now
+        )
+        val paces = (0..4).map { profile.paceSecPerKm(it) }
+        assertTrue("paces=$paces", paces.max() - paces.min() > 1e-6)
+    }
+
+    /** 3.2.0：开启力竭后，后段配速必须比前段慢（若 kmIndexAt 失效则两者相等） */
+    @Test
+    fun `fatigue makes later kilometers slower`() {
+        val profile = PaceProfile.fromConfig(
+            baseSpeedMps = 3.0,
+            paceVariationSec = 0.0,
+            fatigueLevel = 2,
+            firstKmBiasSec = 0.0,
+            routeLengthM = 10_000.0,
+            seed = now
+        )
+        // 力竭从 40%（第 4 公里）之后开始，第 6 公里必须已经变慢且继续变慢
+        assertTrue(profile.paceSecPerKm(6) > profile.paceSecPerKm(0))
+        assertTrue(profile.paceSecPerKm(9) > profile.paceSecPerKm(6))
+    }
+
+    /** 3.2.0：暂停后继续，累计距离必须连续（distanceAfter 的偏移衔接） */
+    @Test
+    fun `resume keeps the accumulated distance continuous`() {
+        startRoute()
+        advance(10_000) // 走了 20 米
+        controller.pause()
+        controller.resume()
+        repeat(20) { if (controller.state.value.returning) advance(500) }
+        // 继续后 5 秒应再走 10 米，累计 30 米
+        advance(5_000)
+        assertEquals(30.0, GeoMath.distance(start, here()), 0.1)
     }
 
     @Test

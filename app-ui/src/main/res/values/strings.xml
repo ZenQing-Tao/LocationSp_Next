@@ -650,6 +650,13 @@ Error details: %s</string>
     <string name="custom_search_url_desc">Must be a Nominatim-compatible endpoint (q / format / limit). Use it for your own instance or proxy</string>
     <string name="osm_search_daily_limit">Daily free search limit reached (%1$d). Try again tomorrow, or set a custom search endpoint in Settings.</string>
     <string name="osm_search_offline_hint">OSM search is currently unreachable (likely a network restriction). Set a custom search endpoint in Settings, or switch to the AMap engine with your own key.</string>
-    <string name="native_location_blocked_hint">Spoofing is active, so native location may be intercepted and return the simulated point. Stop spoofing first to read your real position.</string>
-    <string name="native_location_timeout">Location timed out: weak GPS signal. Try again in the open, or enter coordinates manually.</string>
+    <string name="pace_variation_title">Per-kilometer pace variation</string>
+    <string name="pace_variation_desc">Route mode only. Each kilometer changes the pace by a fixed amount.</string>
+    <string name="fatigue_title">Fatigue</string>
+    <string name="fatigue_desc">Route mode only. Pace slows down gradually after about 40 percent of the route.</string>
+    <string name="fatigue_off">Off</string>
+    <string name="fatigue_weak">Weak</string>
+    <string name="fatigue_strong">Strong</string>
+    <string name="first_km_title">First kilometer boost</string>
+    <string name="first_km_desc">Route mode only. Start slightly faster, then settle into the target pace.</string>
 </resources>
