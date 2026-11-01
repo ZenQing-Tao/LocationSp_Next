@@ -148,27 +148,33 @@ jobs:
 
       # 单元测试：core-geo 是纯 Kotlin/JVM 模块，不需要 Android SDK，秒级跑完。
       # 失败则直接阻断构建，不生成 APK——配速曲线算错时不该产出 APK。
+      # 全量跑（含 MotionRealismTest 等历史用例），不再只跑 PaceProfileTest。
       - name: Run core-geo unit tests
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon :core-geo:test
+          ./gradlew --no-daemon :core-geo:test 2>&1 | tee -a unit-test.log || exit ${PIPESTATUS[0]}
 
-      # core-data 是 Android library 库，单测需要 android.jar（mockable jar），
-      # 依赖前面的 SDK 安装步骤；MotionControllerTest 覆盖路线距离与配速曲线接入。
+      # core-data 是 Android library 库，单测需要 mockable android.jar，依赖前面的 SDK 安装步骤。
+      # 任务名带 flavor 维度（scheme: scoped/global）与 buildType（debug），
+      # 因此用 test 聚合任务而不是写死具体变体任务名，避免 flavor 改名后静默失效。
       - name: Run core-data unit tests
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon :core-data:testScopedDebugUnitTest
+          ./gradlew --no-daemon :core-data:test 2>&1 | tee -a unit-test.log || exit ${PIPESTATUS[0]}
 
-      # 不论成败都上传测试报告，方便在 Actions 页面直接看失败用例
+      # 不论成败都上传测试报告与原始日志：失败时能从 artifact 直接看到编译/断言错误，
+      # 不用登录进网页日志里翻。
       - name: Upload unit test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-report
           path: |
+            unit-test.log
             core-geo/build/reports/tests/test
+            core-geo/build/test-results/test
             core-data/build/reports/tests
+            core-data/build/test-results
           if-no-files-found: warn
           retention-days: 7
 

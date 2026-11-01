@@ -132,7 +132,6 @@ class PaceProfileTest {
         val resumed = p.distanceAfter(1200.0, 90.0)
         assertEquals(continuous, resumed, 1e-9)
     }
-}
     // ==============================================================
     // 回归：kmIndexAt 必须能把公里表推进到第 k 段
     //
@@ -231,3 +230,4 @@ class PaceProfileTest {
         assertEquals(Fatigue.STRONG, Fatigue.fromLevel(2))
         assertEquals(Fatigue.OFF, Fatigue.fromLevel(0))
     }
+}
