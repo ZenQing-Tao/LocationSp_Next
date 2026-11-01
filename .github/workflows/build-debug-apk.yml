@@ -146,6 +146,23 @@ jobs:
         run: |
           echo "GOOGLE_MAPS_API_KEY: ${{ inputs.google_maps_api_key }}" > local.yml
 
+      # 单元测试：core-geo 是纯 Kotlin/JVM 模块，不需要 Android SDK，秒级跑完。
+      # PaceProfileTest 是配速曲线的“红线”，失败则直接阻断构建，不生成 APK。
+      - name: Run core-geo unit tests (PaceProfile)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :core-geo:test --tests '*PaceProfileTest*'
+
+      # 不论成败都上传测试报告，方便在 Actions 页面直接看失败用例
+      - name: Upload core-geo test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-geo-test-report
+          path: core-geo/build/reports/tests/test
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Build APKs
         id: build
         continue-on-error: true
