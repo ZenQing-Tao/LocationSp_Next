@@ -4,6 +4,7 @@ import com.vincenthzr.locationspoofer.utils.AltitudeModel
 import com.vincenthzr.locationspoofer.utils.CoordinateUtils.LatLng
 import com.vincenthzr.locationspoofer.utils.GeoMath
 import com.vincenthzr.locationspoofer.utils.MotionRealism
+import com.vincenthzr.locationspoofer.utils.PaceProfile
 import com.vincenthzr.locationspoofer.utils.RoutePath
 import org.json.JSONArray
 import org.json.JSONObject
@@ -74,13 +75,15 @@ object RouteEngine {
         val rawStartTime = config.optLong("start_timestamp", 0L)
         val startTime = if (rawStartTime > 0L) rawStartTime else now
         val elapsedSec = (now - startTime).coerceAtLeast(0L) / 1000.0
-        val realism = realismSession(config, startTime)
+        // 距离是权威量：与 App 端 MotionController 用同一份 PaceProfile 参数、同一个 seed（路线开始时刻），
+        // 两端对同一时刻给出同一位置与同一速度，不再把随机噪声积分进距离。
+        val profile = paceProfile(config, speed, startTime)
         // 暂停后继续时，路线从暂停处的累计距离接着走（start_timestamp 重置为继续的时刻）
         val offset = config.optDouble("route_distance_offset", 0.0).coerceAtLeast(0.0)
-        val traveled = offset + realism.distance(speed, elapsedSec)
+        val traveled = profile.distanceAfter(offset, elapsedSec)
 
         val pos = path.positionAt(traveled, config.optBoolean("stop_at_destination", false))
-        val currentSpeed = if (pos.arrived) 0f else realism.speed(speed, elapsedSec).toFloat()
+        val currentSpeed = if (pos.arrived) 0f else profile.speedAt(profile.elapsedAt(traveled)).toFloat()
         return SpoofedMotion(pos.lat, pos.lng, pos.bearing, currentSpeed)
     }
 
@@ -95,6 +98,30 @@ object RouteEngine {
         if (variation <= 0.0) return base
         val pos = calculateCurrentPosition(config, now)
         return AltitudeModel.altitude(base, variation, drift, pos.lat, pos.lng, now)
+    }
+
+    // 3.2.0 配速曲线：同一份配置只构造一次，参数或开始时刻变化时才重建（避免每个定位请求都新建对象）
+    @Volatile private var cachedProfile: PaceProfile? = null
+    @Volatile private var cachedProfileKey: String? = null
+
+    private fun paceProfile(config: JSONObject, speed: Double, startTime: Long): PaceProfile {
+        val variation = config.optDouble("pace_variation_sec", 0.0)
+        val fatigue = config.optInt("fatigue_level", 0)
+        val firstBias = config.optDouble("first_km_bias_sec", 0.0)
+        val routeLength = config.optDouble("route_length_m", 0.0)
+        val key = "$speed|$variation|$fatigue|$firstBias|$routeLength|$startTime"
+        cachedProfile?.let { if (cachedProfileKey == key) return it }
+        val built = PaceProfile.fromConfig(
+            baseSpeedMps = speed.coerceAtLeast(0.1),
+            paceVariationSec = variation,
+            fatigueLevel = fatigue,
+            firstKmBiasSec = firstBias,
+            routeLengthM = routeLength,
+            seed = startTime
+        )
+        cachedProfile = built
+        cachedProfileKey = key
+        return built
     }
 
     /** 配置里缺少真实度字段（旧版 App 写的配置）时按"关闭 + 不浮动"处理，行为与旧版一致 */

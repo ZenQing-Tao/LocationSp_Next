@@ -45,6 +45,11 @@ class ConfigMotionSink(
             json.put("start_timestamp", startTimestamp)
             json.put("route_distance_offset", distanceOffset)
             json.put("stop_at_destination", stopAtDestination)
+            // 3.2.0 配速曲线：两端同一组参数，必须一起下发
+            json.put("pace_variation_sec", preset.paceVariationSec)
+            json.put("fatigue_level", preset.fatigueLevel)
+            json.put("first_km_bias_sec", preset.firstKmBiasSec)
+            json.put("route_length_m", preset.routeLengthM)
         }
     }
 

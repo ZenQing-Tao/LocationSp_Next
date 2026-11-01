@@ -22,15 +22,20 @@ package com.vincenthzr.locationspoofer.utils
  * 全程无随机游走，只有"每公里取一个确定值"，因此两端（App / Hook）用同一
  * seed 计算结果完全一致，不需要跨进程通信。
  */
-enum class Fatigue(val minSecPerKm: Double, val maxSecPerKm: Double) {
+enum class Fatigue(val level: Int, val minSecPerKm: Double, val maxSecPerKm: Double) {
     /** 不衰减。 */
-    OFF(0.0, 0.0),
+    OFF(0, 0.0, 0.0),
 
     /** 弱：每公里掉 3~8 秒。 */
-    WEAK(3.0, 8.0),
+    WEAK(1, 3.0, 8.0),
 
     /** 强：每公里掉 5~15 秒。 */
-    STRONG(5.0, 15.0)
+    STRONG(2, 5.0, 15.0);
+
+    companion object {
+        /** fatigue_level：0=OFF，1=WEAK，2=STRONG，其他值落到 OFF。 */
+        fun fromLevel(level: Int): Fatigue = entries.firstOrNull { it.level == level } ?: OFF
+    }
 }
 
 class PaceProfile(
@@ -213,6 +218,27 @@ class PaceProfile(
     }
 
     companion object {
+        /**
+         * 从下发配置原始值构造，App 与 Hook 两端都走这里，
+         * 保证同一组参数得到完全一致的曲线。
+         * 旧版 App 不传新字段时传默认值（0/OFF/0/0），退化为严格匀速。
+         */
+        fun fromConfig(
+            baseSpeedMps: Double,
+            paceVariationSec: Double = 0.0,
+            fatigueLevel: Int = 0,
+            firstKmBiasSec: Double = 0.0,
+            routeLengthM: Double = 0.0,
+            seed: Long = 0L
+        ): PaceProfile = PaceProfile(
+            baseSpeedMps = baseSpeedMps,
+            perKmVariationSec = paceVariationSec,
+            fatigue = Fatigue.fromLevel(fatigueLevel),
+            firstKmBiasSec = firstKmBiasSec,
+            routeLengthM = routeLengthM,
+            seed = seed
+        )
+
         const val DEFAULT_VARIATION_SEC = 5.0
         const val DEFAULT_FIRST_KM_BIAS_SEC = -3.0
         const val MAX_FATIGUE_ACC_SEC = 90.0

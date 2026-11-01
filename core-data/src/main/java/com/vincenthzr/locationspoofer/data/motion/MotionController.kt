@@ -5,6 +5,7 @@ import com.vincenthzr.locationspoofer.data.state.SpoofingState
 import com.vincenthzr.locationspoofer.utils.CoordinateUtils.LatLng
 import com.vincenthzr.locationspoofer.utils.GeoMath
 import com.vincenthzr.locationspoofer.utils.MotionRealism
+import com.vincenthzr.locationspoofer.utils.PaceProfile
 import com.vincenthzr.locationspoofer.utils.RoutePath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +66,18 @@ class MotionController(
     }
 
     /** 速度档位；name 与界面的 SimMode 枚举名一致，方便双向同步 */
-    data class SpeedPreset(val name: String, val speedMs: Double)
+    data class SpeedPreset(
+        val name: String,
+        val speedMs: Double,
+        /** 每公里配速浮动（秒） */
+        val paceVariationSec: Double = 0.0,
+        /** 力竭档位：0关 / 1弱 / 2强 */
+        val fatigueLevel: Int = 0,
+        /** 第一公里偏快（秒，负数=更快） */
+        val firstKmBiasSec: Double = 0.0,
+        /** 路线总长（米） */
+        val routeLengthM: Double = 0.0
+    )
 
     data class State(
         val mode: Mode = Mode.IDLE,
@@ -103,6 +115,11 @@ class MotionController(
     private var routeOffset = 0.0
     private var pausePoint: LatLng? = null
     private var pauseDistance = 0.0
+
+    // ---- 3.2.0 配速曲线：按 (路线开始时刻, 档位) 缓存，避免每个节拍重建
+    private var cachedProfile: PaceProfile? = null
+    private var cachedProfileStartTs = Long.MIN_VALUE
+    private var cachedProfilePreset: SpeedPreset? = null
 
     // ---- 摇杆输入
     @Volatile private var joyBearing = 0.0
@@ -156,6 +173,10 @@ class MotionController(
     ) {
         val routePath = RoutePath(points.map { LatLng(it.lat, it.lng) })
         if (!routePath.isValid) return
+        // 路线总长决定力竭起点：界面没传时用实际路径长度兜底。
+        // 这一步必须在这里做，否则下发给 Xposed 的 route_length_m 会是 0，两端曲线不一致。
+        val effectivePreset =
+            if (preset.routeLengthM > 0.0) preset else preset.copy(routeLengthM = routePath.totalDistance)
         path = routePath
         this.stopAtDestination = stopAtDestination
         routeStartTs = startTimestamp
@@ -177,9 +198,10 @@ class MotionController(
                 hasRoute = true,
                 paused = startPaused,
                 returning = false,
-                preset = preset
+                preset = effectivePreset
             )
         }
+        invalidateProfile()
         ensureTicking()
     }
 
@@ -247,15 +269,20 @@ class MotionController(
 
     fun setSpeedPreset(preset: SpeedPreset) {
         val s = _state.value
+        // 路线总长是力竭起点与下发字段的依据：界面未传时沿用实际路径长度，
+        // 否则换档位会把 onRouteStarted 里补好的长度覆盖成 0，两端力竭曲线同时失效。
+        val effectivePreset =
+            if (preset.routeLengthM > 0.0) preset
+            else preset.copy(routeLengthM = path?.totalDistance ?: 0.0)
         if (s.mode == Mode.ROUTE && path != null) {
             // 换速度会改变"累计距离随时间的函数"，先把已走的距离固定为偏移，再按新速度从当前时刻继续
             val now = clock()
             routeOffset = traveledAt(now)
             routeStartTs = now
-            _state.update { it.copy(preset = preset) }
+            _state.update { it.copy(preset = effectivePreset) }
             requestRouteWrite(now)
         } else {
-            _state.update { it.copy(preset = preset) }
+            _state.update { it.copy(preset = effectivePreset) }
         }
     }
 
@@ -292,6 +319,7 @@ class MotionController(
         routeOffset = 0.0
         pausePoint = null
         SpoofingState.routeDistanceOffset = 0.0
+        invalidateProfile()
     }
 
     private fun finishRecording() {
@@ -300,15 +328,51 @@ class MotionController(
         _state.update { it.copy(recording = false, hasPendingRecording = recorded.size >= 2) }
     }
 
+    /** 旧的“真实度”会话：3.2.0 起路线距离改由 [PaceProfile] 权威计算，仅保留供其它模式与回滚对比。 */
+    @Suppress("unused")
     private fun realism(start: Long): MotionRealism.Session {
         val (level, pct) = realismParams()
         return MotionRealism.session(start, level, pct)
     }
 
-    /** 与 Xposed 端 RouteEngine 同一公式：偏移 + 从本段开始时刻起按（带浮动的）速度行进的距离 */
+    /**
+     * 当前路线会话的配速曲线。
+     *
+     * seed 用路线开始时刻（= 下发给 Xposed 的 start_timestamp），两端拿到同一个 seed、
+     * 同一组档位参数，因此对同一时刻算出同一位置。换档位或暂停继续都会改变 start_timestamp，
+     * 缓存随之失效并按新曲线重建，而累计距离由 routeOffset 衔接，不会回跳。
+     */
+    private fun paceProfile(): PaceProfile {
+        val preset = _state.value.preset
+        val cached = cachedProfile
+        if (cached != null && cachedProfileStartTs == routeStartTs && cachedProfilePreset == preset) return cached
+        val built = PaceProfile.fromConfig(
+            baseSpeedMps = preset.speedMs.coerceAtLeast(0.1),
+            paceVariationSec = preset.paceVariationSec,
+            fatigueLevel = preset.fatigueLevel,
+            firstKmBiasSec = preset.firstKmBiasSec,
+            routeLengthM = preset.routeLengthM,
+            seed = routeStartTs
+        )
+        cachedProfile = built
+        cachedProfileStartTs = routeStartTs
+        cachedProfilePreset = preset
+        return built
+    }
+
+    private fun invalidateProfile() {
+        cachedProfile = null
+        cachedProfilePreset = null
+        cachedProfileStartTs = Long.MIN_VALUE
+    }
+
+    /**
+     * 与 Xposed 端 RouteEngine 同一公式：偏移 + 从本段开始时刻起按配速曲线行进的距离。
+     * 距离是权威量，速度只是它的导数，不再把随机噪声积分进距离（3.1.x 系统性偏快 20%+ 的根因）。
+     */
     private fun traveledAt(now: Long): Double {
         val elapsed = (now - routeStartTs).coerceAtLeast(0L) / 1000.0
-        return routeOffset + realism(routeStartTs).distance(_state.value.preset.speedMs, elapsed)
+        return paceProfile().distanceAfter(routeOffset, elapsed)
     }
 
     private fun ensureTicking() {
@@ -329,9 +393,10 @@ class MotionController(
         when {
             s.mode == Mode.ROUTE -> {
                 val routePath = path ?: return
-                val elapsed = (now - routeStartTs).coerceAtLeast(0L) / 1000.0
-                val pos = routePath.positionAt(traveledAt(now), stopAtDestination)
-                val speed = if (pos.arrived) 0.0 else realism(routeStartTs).speed(s.preset.speedMs, elapsed)
+                val profile = paceProfile()
+                val traveled = traveledAt(now)
+                val pos = routePath.positionAt(traveled, stopAtDestination)
+                val speed = if (pos.arrived) 0.0 else profile.speedAt(profile.elapsedAt(traveled))
                 _state.update { it.copy(lat = pos.lat, lng = pos.lng, bearing = pos.bearing, speedMs = speed) }
             }
 
