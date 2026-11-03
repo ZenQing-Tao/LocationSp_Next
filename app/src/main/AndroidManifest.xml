@@ -67,6 +67,11 @@
             </intent-filter>
         </activity>
         <service android:name="com.amap.api.location.APSService" />
+        <!-- 轨迹录制：前台服务持续读取真实 GPS（录制期间模拟关闭） -->
+        <service
+            android:name="com.vincenthzr.locationspoofer.service.TrajectoryRecordService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 
 </manifest>

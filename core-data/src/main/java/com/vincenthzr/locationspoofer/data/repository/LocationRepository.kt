@@ -5,6 +5,8 @@ import android.location.LocationManager
 import android.os.Build
 import com.vincenthzr.locationspoofer.data.db.SavedRouteDao
 import com.vincenthzr.locationspoofer.data.db.SavedRouteEntity
+import com.vincenthzr.locationspoofer.data.db.TrajectoryDao
+import com.vincenthzr.locationspoofer.data.db.TrajectoryEntity
 import com.vincenthzr.locationspoofer.data.model.RootSetupTestResult
 import com.vincenthzr.locationspoofer.data.model.RootSolution
 import com.vincenthzr.locationspoofer.data.model.RoutePoint
@@ -22,6 +24,7 @@ class LocationRepository(
     private val lsposedManager: LSPosedManager,
     private val settingsManager: SettingsManager,
     private val savedRouteDao: SavedRouteDao,
+    private val trajectoryDao: TrajectoryDao,
     private val spoofingServiceController: SpoofingServiceController
 ) {
     /** 用户在设置里选择的 root 方案；解析失败（脏数据/尚未设置）时退回 AUTO */
@@ -331,4 +334,17 @@ class LocationRepository(
     suspend fun deleteSavedRoute(route: SavedRouteEntity) {
         savedRouteDao.deleteSavedRoute(route)
     }
+
+    // ---- 轨迹（独立于普通路线，存“位置 + 时刻”）
+
+    fun getTrajectories(): kotlinx.coroutines.flow.Flow<List<TrajectoryEntity>> = trajectoryDao.getAll()
+
+    suspend fun getAllTrajectories(): List<TrajectoryEntity> = trajectoryDao.getAllList()
+
+    suspend fun getTrajectoryById(id: Long): TrajectoryEntity? =
+        trajectoryDao.getAllList().firstOrNull { it.id == id }
+
+    suspend fun insertTrajectory(entity: TrajectoryEntity): Long = trajectoryDao.insert(entity)
+
+    suspend fun deleteTrajectoryById(id: Long) = trajectoryDao.deleteById(id)
 }

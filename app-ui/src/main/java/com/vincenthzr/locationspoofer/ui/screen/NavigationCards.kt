@@ -365,3 +365,64 @@ fun FooterLinks(isDark: Boolean) {
 
     }
 }
+
+@Composable
+fun TrajectoryRecordCard(
+    isDark: Boolean,
+    isRecording: Boolean,
+    onClick: () -> Unit
+) {
+    MiuixCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .noRippleClickable { onClick() },
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(AccentBlue.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.Route, null, tint = AccentBlue, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.trajectory_feature_title),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (isRecording) stringResource(R.string.trajectory_feature_recording)
+                    else stringResource(R.string.trajectory_feature_desc),
+                    color = AppColors.textSecondary(isDark),
+                    fontSize = 12.sp
+                )
+            }
+            if (isRecording) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(AccentGreen)
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            Icon(
+                Icons.Rounded.ChevronRight,
+                null,
+                tint = AppColors.textSecondary(isDark).copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}

@@ -20,4 +20,7 @@
     <string name="fj_save">Save</string>
     <string name="fj_discard">Discard</string>
     <string name="fj_saved_toast">Route saved</string>
+    <string name="trajectory_recording_title">Recording trajectory</string>
+    <string name="trajectory_recording_content">Collecting real GPS points</string>
+    <string name="trajectory_record_channel">Trajectory recording</string>
 </resources>

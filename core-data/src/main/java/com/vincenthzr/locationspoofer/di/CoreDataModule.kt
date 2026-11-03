@@ -29,7 +29,7 @@ val coreDataModule = module {
     single { OpenCellIdClient() }
     single { WifiRepository(get()) }
 
-    single { LocationRepository(get(), get(), get(), get(), get(), get()) }
+    single { LocationRepository(get(), get(), get(), get(), get(), get(), get()) }
     single { SettingsRepository(get()) }
     single { HookStatusRepository(get()) }
     single {
@@ -46,4 +46,5 @@ val coreDataModule = module {
     single { AppDatabase.getDatabase(androidContext()) }
     single { get<AppDatabase>().environmentDao() }
     single { get<AppDatabase>().savedRouteDao() }
+    single { get<AppDatabase>().trajectoryDao() }
 }
