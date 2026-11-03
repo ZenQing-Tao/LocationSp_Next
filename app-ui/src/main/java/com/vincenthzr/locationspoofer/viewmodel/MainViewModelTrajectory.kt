@@ -8,7 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.vincenthzr.locationspoofer.data.db.TrajectoryEntity
 import com.vincenthzr.locationspoofer.data.model.TrajectoryListItem
 import com.vincenthzr.locationspoofer.data.model.TrajectoryStats
-import com.vincenthzr.locationspoofer.service.TrajectoryRecordService
+import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
 import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.utils.CoordinateUtils
 import com.vincenthzr.locationspoofer.utils.GeoMath

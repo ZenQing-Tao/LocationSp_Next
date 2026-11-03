@@ -4,7 +4,4 @@
     <string name="spoofing_service_content">محاكاة الموقع: %1$s, %2$s</string>
     <string name="spoofing_service_channel_name">خدمة محاكي الموقع</string>
     <string name="spoofing_bg_notification_title">إشعار الحفاظ على تشغيل محاكاة الموقع في الخلفية</string>
-    <string name="trajectory_recording_title">جارٍ تسجيل المسار</string>
-    <string name="trajectory_recording_content">جارٍ جمع نقاط GPS الحقيقية</string>
-    <string name="trajectory_record_channel">تسجيل المسار</string>
 </resources>

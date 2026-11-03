@@ -1,4 +1,4 @@
-package com.vincenthzr.locationspoofer.service
+package com.vincenthzr.locationspoofer.ui.service
 
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
 import java.util.concurrent.CopyOnWriteArrayList
 

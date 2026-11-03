@@ -20,7 +20,4 @@
     <string name="fj_save">保存</string>
     <string name="fj_discard">放弃</string>
     <string name="fj_saved_toast">路线已保存</string>
-    <string name="trajectory_recording_title">正在录制轨迹</string>
-    <string name="trajectory_recording_content">正在采集真实 GPS 点位</string>
-    <string name="trajectory_record_channel">轨迹录制</string>
 </resources>

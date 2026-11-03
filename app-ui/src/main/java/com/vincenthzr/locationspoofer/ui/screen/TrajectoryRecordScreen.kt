@@ -28,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vincenthzr.locationspoofer.data.model.AppState
-import com.vincenthzr.locationspoofer.service.TrajectoryRecordService
+import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
 import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.ui.theme.AccentBlue
 import com.vincenthzr.locationspoofer.ui.theme.AccentGreen
@@ -39,6 +39,8 @@ import com.vincenthzr.locationspoofer.viewmodel.startTrajectoryRecording
 import com.vincenthzr.locationspoofer.viewmodel.stopTrajectoryRecording
 import com.vincenthzr.locationspoofer.viewmodel.deleteTrajectory
 import com.vincenthzr.locationspoofer.viewmodel.saveTrajectory
+import com.vincenthzr.locationspoofer.viewmodel.discardPendingTrajectory
+import com.vincenthzr.locationspoofer.viewmodel.pollRecordingStats
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 
 /**
@@ -62,6 +64,8 @@ fun TrajectoryRecordScreen(
 
     val recording = uiState.isTrajectoryRecording
     val stats = uiState.trajectoryStats
+    // stringResource 只能在 Composable 上下文取，这里先取好，供按钮回调里使用
+    val defaultName = stringResource(R.string.trajectory_default_name)
 
     // 录制结束 → 弹出命名框（输入框内容本地保存，确认后才落库）
     var naming by remember { mutableStateOf(false) }
@@ -286,7 +290,7 @@ fun TrajectoryRecordScreen(
                     naming = false
                     viewModel.saveTrajectory(
                         context,
-                        nameInput.ifBlank { stringResource(R.string.trajectory_default_name) },
+                        nameInput.ifBlank { defaultName },
                         pts
                     )
                     viewModel.discardPendingTrajectory()
