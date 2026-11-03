@@ -33,6 +33,7 @@ import com.vincenthzr.locationspoofer.ui.screen.FooterLinks
 import com.vincenthzr.locationspoofer.ui.screen.ImportExportDataCard
 import com.vincenthzr.locationspoofer.ui.screen.ManageDataCard
 import com.vincenthzr.locationspoofer.ui.screen.ScannerMapCard
+import com.vincenthzr.locationspoofer.ui.screen.TrajectoryRecordCard
 import com.vincenthzr.locationspoofer.ui.screen.SystemHookAppsConfigCard
 import com.vincenthzr.locationspoofer.ui.components.ImportExportSelectionDialog
 import com.vincenthzr.locationspoofer.data.model.ImportExportCounts
