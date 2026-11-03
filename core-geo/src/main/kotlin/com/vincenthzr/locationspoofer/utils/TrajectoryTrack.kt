@@ -179,8 +179,9 @@ class TrajectoryTrack(val points: List<TrajectoryPoint>) {
                             CoordinateUtils.LatLng(prev.lat, prev.lng),
                             CoordinateUtils.LatLng(p.lat, p.lng)
                         )
-                        val diff = abs(bearing - bearing2) % 360f
-                        if (diff > 180f) diff = 360f - diff
+                        // 夹角差归一到 [0, 180]：绕一圈的 359 度应视为 1 度
+                        val raw = abs(bearing - bearing2) % 360f
+                        val diff = min(raw, 360f - raw)
                         if (diff < turnThresholdDeg) continue
                     }
                 }
