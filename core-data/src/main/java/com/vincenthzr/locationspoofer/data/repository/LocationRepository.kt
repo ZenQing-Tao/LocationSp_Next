@@ -327,22 +327,6 @@ class LocationRepository(
         )
     }
 
-    /**
-     * 保存一条 GPS 轨迹到路线库。
-     *
-     * 轨迹与普通路线存在同一张表里：模拟时两者行为完全一致（都是一串路点 + 配速档位），
-     * 只是来源不同，用 [SOURCE_TRAJECTORY] 标记，便于路线库给出区分提示。
-     */
-    suspend fun insertTrajectoryRoute(name: String, points: List<RoutePoint>) {
-        val pointsJson = routePointsToJson(points)
-        savedRouteDao.insertSavedRoute(
-            SavedRouteEntity(
-                name = name,
-                pointsJson = pointsJson,
-                source = SOURCE_TRAJECTORY
-            )
-        )
-    }
 
     /**
      * 保存一条 GPS 轨迹到路线库。
