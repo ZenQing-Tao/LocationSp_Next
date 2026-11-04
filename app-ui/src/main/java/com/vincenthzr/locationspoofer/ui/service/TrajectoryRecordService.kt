@@ -17,6 +17,7 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.utils.CoordinateUtils
+import com.vincenthzr.locationspoofer.utils.GeoMath
 import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
 import java.util.concurrent.CopyOnWriteArrayList
 
