@@ -67,6 +67,8 @@ class TrajectoryRecordService : Service() {
             val lng: Double,
             val tOffsetSec: Double,
             val accuracyM: Float
+            /** 行进方向（度，正北 0，顺时针）；无 bearing 时为 NaN */
+            val bearingDeg: Double = Double.NaN
         )
 
         fun resetSamples() {
@@ -170,7 +172,8 @@ class TrajectoryRecordService : Service() {
         // Android GPS 返回的是 WGS-84，而本项目内部统一用 GCJ-02（底图与模拟都是 GCJ-02）。
         // 不转换会导致：① 轨迹在地图上整体偏移 500~600 米；② 与 GCJ-02 底图/其它数据混算时距离虚高。
         val gcj = CoordinateUtils.wgs84ToGcj02(location.latitude, location.longitude)
-        rawPoints.add(RawSample(gcj.lat, gcj.lng, t, accuracy))
+        val bearing = if (location.hasBearing()) location.bearing.toDouble() else Double.NaN
+        rawPoints.add(RawSample(gcj.lat, gcj.lng, t, accuracy, bearing))
     }
 
     private fun stopRecording() {

@@ -14,6 +14,7 @@ import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.utils.CoordinateUtils
 import com.vincenthzr.locationspoofer.utils.GeoMath
 import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
+import com.vincenthzr.locationspoofer.utils.TrajectoryGeometry
 import com.vincenthzr.locationspoofer.utils.TrajectoryTrack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -136,7 +137,13 @@ internal fun MainViewModel.saveTrajectory(
             // 在路线库里点一下即可像普通路线一样选配速、循环/折返地模拟。
             // 写 Room 表而不是 SharedPreferences —— 路线库界面读的是 Room 那边。
             val smoothed = TrajectoryTrack(points).smooth()
-            val routePoints = smoothed.map { RoutePoint(it.lat, it.lng) }
+            // 开关开启时：起终点相近则把终点连回起点形成闭环，模拟时按循环走而不是折返
+            val closed = if (_uiState.value.autoCloseTrajectoryLoop) {
+                TrajectoryGeometry.closeLoopIfNear(smoothed)
+            } else {
+                smoothed
+            }
+            val routePoints = closed.map { RoutePoint(it.lat, it.lng) }
             if (routePoints.size >= 2) {
                 locationRepository.insertTrajectoryRoute(entity.name, routePoints)
             }

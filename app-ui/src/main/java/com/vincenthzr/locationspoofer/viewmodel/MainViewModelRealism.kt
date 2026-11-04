@@ -184,3 +184,9 @@ private fun vibrate(context: Context, millis: Long) {
     } catch (_: Exception) {
     }
 }
+
+// 录制轨迹时是否自动闭合起终点（起终点相近时）
+internal fun MainViewModel.setAutoCloseTrajectoryLoop(enabled: Boolean) {
+    settingsRepository.autoCloseTrajectoryLoop = enabled
+    _uiState.update { it.copy(autoCloseTrajectoryLoop = enabled) }
+}

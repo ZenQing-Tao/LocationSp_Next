@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,6 +33,10 @@ import com.vincenthzr.locationspoofer.ui.components.AppMapController
 import com.vincenthzr.locationspoofer.ui.components.AppMapMarker
 import com.vincenthzr.locationspoofer.ui.components.AppMapView
 import com.vincenthzr.locationspoofer.ui.components.MarkerType
+import com.vincenthzr.locationspoofer.utils.TrajectoryGeometry
+import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
+import com.vincenthzr.locationspoofer.utils.TrajectoryGeometry
+import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
 import com.vincenthzr.locationspoofer.viewmodel.isDomesticEnvironment
 import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
 import com.vincenthzr.locationspoofer.ui.R
@@ -46,6 +51,7 @@ import com.vincenthzr.locationspoofer.viewmodel.deleteTrajectory
 import com.vincenthzr.locationspoofer.viewmodel.saveTrajectory
 import com.vincenthzr.locationspoofer.viewmodel.discardPendingTrajectory
 import com.vincenthzr.locationspoofer.viewmodel.pollRecordingStats
+import com.vincenthzr.locationspoofer.viewmodel.setAutoCloseTrajectoryLoop
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 
 /**
@@ -99,6 +105,24 @@ fun TrajectoryRecordScreen(
             val last = samples.last()
             controller.addMarker(last.lat, last.lng, "", MarkerType.RED)
             liveMarker = controller.addMarker(last.lat, last.lng, "", MarkerType.ORANGE)
+            // 绿色 V 形箭头：指向行进方向（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
+            val heading = TrajectoryGeometry.headingAt(
+                points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
+                index = samples.size - 1,
+                gpsBearingDeg = samples.last().bearingDeg.takeIf { !it.isNaN() }
+            )
+            val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
+            controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
+            controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
+            // 绿色 V 形箭头：指向行进方向（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
+            val heading = TrajectoryGeometry.headingAt(
+                points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
+                index = samples.size - 1,
+                gpsBearingDeg = samples.last().bearingDeg.takeIf { !it.isNaN() }
+            )
+            val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
+            controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
+            controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
             // 视野跟随已录范围
             controller.fitBounds(pts, 60)
             drawnPointCount = samples.size
@@ -263,6 +287,39 @@ fun TrajectoryRecordScreen(
                     fontSize = 11.5.sp,
                     lineHeight = 16.sp
                 )
+
+            // 新增：录制前的选项（起终点相近时自动闭合）
+            MiuixCard(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 18.dp,
+                insideMargin = PaddingValues(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.trajectory_close_loop_title),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.trajectory_close_loop_desc),
+                            fontSize = 11.5.sp,
+                            color = AppColors.textSecondary(isDark),
+                            lineHeight = 16.sp
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = uiState.autoCloseTrajectoryLoop,
+                        onCheckedChange = { viewModel.setAutoCloseTrajectoryLoop(it) }
+                    )
+                }
+            }
             }
 
             // 已保存轨迹
@@ -426,6 +483,10 @@ fun TrajectoryRecordScreen(
 }
 
 private const val ACCENT_ORANGE = 0xFFFF8A00.toInt()
+/** 朝向箭头颜色（绿色，与橙色轨迹区分） */
+private const val ARROW_COLOR = 0xFF00B578.toInt()
+/** 朝向箭头颜色（绿色，与橙色轨迹区分） */
+private const val ARROW_COLOR = 0xFF00B578.toInt()
 
 @Composable
 private fun PrimaryButton(

@@ -81,6 +81,8 @@ data class AppState(
     val firstKmBiasSec: Int = 0,
     /** 3.2.0 配速曲线：开始掉速的里程（公里，一位小数字符串） */
     val fatigueStartKm: String = "2.0",
+    /** 录制轨迹时自动闭合起终点 */
+    val autoCloseTrajectoryLoop: Boolean = true,
 
     /** 是否正在录制轨迹（真实 GPS） */
     val isTrajectoryRecording: Boolean = false,

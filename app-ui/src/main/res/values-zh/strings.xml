@@ -693,4 +693,6 @@
     <string name="trajectory_saved_to_route_library">轨迹已保存到路线库</string>
     <string name="trajectory_go_to_library">打开路线库</string>
     <string name="trajectory_not_saved">不保存</string>
+    <string name="trajectory_close_loop_title">自动闭合起终点</string>
+    <string name="trajectory_close_loop_desc">终点与起点相距 15 米以内时自动连成闭环，模拟时按循环走而不是折返。</string>
 </resources>

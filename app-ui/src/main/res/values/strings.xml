@@ -693,4 +693,6 @@ Error details: %s</string>
     <string name="trajectory_saved_to_route_library">Trajectory saved to the route library</string>
     <string name="trajectory_go_to_library">Open route library</string>
     <string name="trajectory_not_saved">Not saved</string>
+    <string name="trajectory_close_loop_title">Close the loop automatically</string>
+    <string name="trajectory_close_loop_desc">When the end point is within 15 m of the start point, connect them so the route loops instead of doubling back.</string>
 </resources>

@@ -171,6 +171,15 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putInt("first_km_bias_sec", value.coerceIn(-30, 0)).apply()
 
     /**
+     * 录制轨迹时：起终点相近时自动把终点连回起点，形成闭环。
+     * 真人绕一圈回到起点附近时，直接折返会在“终点 → 起点”之间拉出一条
+     * 横穿地图的直线，看起来很假；闭合后就是自然的循环。
+     */
+    var autoCloseTrajectoryLoop: Boolean
+        get() = prefs.getBoolean("auto_close_trajectory_loop", true)
+        set(value) = prefs.edit().putBoolean("auto_close_trajectory_loop", value).apply()
+
+    /**
      * 3.2.0 配速曲线：开始掉速的里程（公里，保留一位小数，默认 "2.0"）。
      * 用字符串存是为了让输入框能保留用户正在编辑的半截内容（如 "2."）。
      */

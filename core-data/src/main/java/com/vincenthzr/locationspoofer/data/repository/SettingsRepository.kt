@@ -223,6 +223,13 @@ class SettingsRepository(private val settingsManager: SettingsManager) {
             settingsManager.firstKmBiasSec = value
         }
 
+    /** 录制轨迹时自动闭合起终点（起终点相近时） */
+    var autoCloseTrajectoryLoop: Boolean
+        get() = settingsManager.autoCloseTrajectoryLoop
+        set(value) {
+            settingsManager.autoCloseTrajectoryLoop = value
+        }
+
     /** 3.2.0 配速曲线：开始掉速的里程（公里，一位小数字符串） */
     var fatigueStartKm: String
         get() = settingsManager.fatigueStartKm
