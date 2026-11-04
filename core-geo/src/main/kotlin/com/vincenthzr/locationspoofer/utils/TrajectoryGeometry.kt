@@ -107,7 +107,7 @@ object TrajectoryGeometry {
         bearingDeg: Double,
         meters: Double
     ): Pair<Double, Double> {
-        val p = GeoMath.destination(CoordinateUtils.LatLng(lat, lng), bearingDeg.toFloat(), meters)
+        val p = GeoMath.destination(CoordinateUtils.LatLng(lat, lng), bearingDeg, meters)
         return p.lat to p.lng
     }
 
