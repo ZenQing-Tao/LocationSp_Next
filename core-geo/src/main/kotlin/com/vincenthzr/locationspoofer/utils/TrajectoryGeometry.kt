@@ -44,19 +44,24 @@ object TrajectoryGeometry {
     /**
      * 计算某个时刻的行进方向（度，正北为 0，顺时针）。
      *
-     * 优先用 GPS 自带的 bearing（稳定、不受抖动影响）；
-     * 没有 bearing 时退化为“最近两点连线方向”，取前一小段的平均以抵消抖动。
+     * **只用轨迹几何，不用 GPS 的 `bearing` 字段。**
+     * 原因：`Location.bearing` 是“移动方向”，在步行这种低速场景下极不稳定——
+     * 静止或慢速时系统会保留上一次的旧值、或直接报 0，结果就是箭头指向错误。
+     * 轨迹点连线反映的是“你实际走过的方向”，没有这个问题。
+     *
+     * 取法：从当前位置往前回溯最多 2 段取平均，既能抗抖动又能跟上转弯。
+     *
+     * @param gpsBearingDeg 录制端传入的原始 bearing；为了兼容旧调用保留参数，
+     *   **但不参与计算**（见上面的原因）。
      */
     fun headingAt(
         points: List<TrajectoryPoint>,
         index: Int,
-        gpsBearingDeg: Double? = null
+        @Suppress("UNUSED_PARAMETER") gpsBearingDeg: Double? = null
     ): Double {
-        if (gpsBearingDeg != null && !gpsBearingDeg.isNaN()) return (gpsBearingDeg + 360.0) % 360.0
         if (points.size < 2) return 0.0
         val i = index.coerceIn(1, points.size - 1)
-        // 从当前位置往前回溯若干点，取平均方向，抵消 GPS 抖动
-        val window = 3
+        val window = 2
         var sx = 0.0
         var sy = 0.0
         var n = 0
@@ -74,6 +79,7 @@ object TrajectoryGeometry {
             k--
         }
         if (n == 0) return 0.0
+        // atan2(东向分量, 北向分量) = 从正北顺时针的角度
         return (Math.toDegrees(kotlin.math.atan2(sx, sy)) + 360.0) % 360.0
     }
 
@@ -115,7 +121,7 @@ object TrajectoryGeometry {
     const val DEFAULT_CLOSE_THRESHOLD_M = 15.0
 
     /** 箭头长度（米） */
-    const val DEFAULT_ARROW_LENGTH_M = 6.0
+    const val DEFAULT_ARROW_LENGTH_M = 3.0
 
     /** V 形箭头张角（度） */
     const val DEFAULT_ARROW_SPREAD_DEG = 40.0

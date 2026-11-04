@@ -47,6 +47,12 @@ class TrajectoryRecordService : Service() {
         private const val MIN_DISTANCE_M = 2.0f
         /** 精度上限（米），差于此值的定位不可信 */
         private const val MAX_ACCURACY_M = 50f
+        /** 定位最大允许“年龄”：超过这个时间的定位视为陈旧（用来拦 last known location） */
+        private const val MAX_LOCATION_AGE_MS = 3_000L
+        /** 首点跳变阈值（米）：第二个点比首点远这么多、且时间很短，就认为首点坏了 */
+        private const val FIRST_POINT_JUMP_M = 30.0
+        /** 首点跳变的判定时间窗（秒） */
+        private const val FIRST_POINT_JUMP_WINDOW_SEC = 5.0
 
         @Volatile
         var isRecording: Boolean = false
@@ -164,14 +170,40 @@ class TrajectoryRecordService : Service() {
 
     private fun handleLocation(location: Location) {
         if (!isRecording) return
+
+        // ① 丢弃“陈旧”定位：
+        // 注册监听后，系统会立刻把**上次已知位置**（last known location）推一次，
+        // 那可能是几小时前、甚至几公里外的位置。不拦掉就会出现“刚开录就飞出一大段直线”。
+        val now = System.currentTimeMillis()
+        if (now - location.time > MAX_LOCATION_AGE_MS) return
+
         val accuracy = if (location.hasAccuracy()) location.accuracy else Float.NaN
-        // 精度太差（>50m）的定位不可信，直接丢弃
+        // ② 精度太差（>50m）的定位不可信，直接丢弃
         if (!accuracy.isNaN() && accuracy > MAX_ACCURACY_M) return
-        // 时间戳用系统当前时间（与 startTimestamp 同源），不依赖 provider 的时间
-        val t = (System.currentTimeMillis() - startTimestamp) / 1000.0
-        // Android GPS 返回的是 WGS-84，而本项目内部统一用 GCJ-02（底图与模拟都是 GCJ-02）。
-        // 不转换会导致：① 轨迹在地图上整体偏移 500~600 米；② 与 GCJ-02 底图/其它数据混算时距离虚高。
+
+        // 坐标必须先统一到 GCJ-02 再参与任何距离计算，
+        // 否则 WGS-84 与 GCJ-02 混算会凭空多出 500 米偏差。
         val gcj = CoordinateUtils.wgs84ToGcj02(location.latitude, location.longitude)
+
+        // 时间戳用系统当前时间（与 startTimestamp 同源），不依赖 provider 的时间
+        val t = (now - startTimestamp) / 1000.0
+
+        // ③ 首点跳变保护：
+        // GPS 冷启动后的第一个点往往带几十米误差（精度值可能只有 30~40m，能过上面的阀值）。
+        // 若第二个点与它差得很远、而时间只过了几秒，说明首点是坏的——丢掉它、从当前点重新起算，
+        // 否则这段“假位移”会一路留在轨迹里（实测能凭空多出 60 米）。
+        if (rawPoints.size == 1) {
+            val first = rawPoints[0]
+            val gap = GeoMath.distance(
+                CoordinateUtils.LatLng(first.lat, first.lng),
+                CoordinateUtils.LatLng(gcj.lat, gcj.lng)
+            )
+            val dt = t - first.tOffsetSec
+            if (gap > FIRST_POINT_JUMP_M && dt < FIRST_POINT_JUMP_WINDOW_SEC) {
+                rawPoints.clear()
+            }
+        }
+
         val bearing = if (location.hasBearing()) location.bearing.toDouble() else Double.NaN
         rawPoints.add(RawSample(gcj.lat, gcj.lng, t, accuracy, bearing))
     }
