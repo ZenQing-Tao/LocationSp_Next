@@ -472,6 +472,9 @@ fun TrajectoryRecordScreen(
 }
 
 private const val ACCENT_ORANGE = 0xFFFF8A00.toInt()
+
+/** 朝向箭头颜色（绿色，与橙色轨迹区分） */
+private const val ARROW_COLOR = 0xFF00B578.toInt()
 /** 朝向箭头颜色（绿色，与橙色轨迹区分） */
 
 @Composable
