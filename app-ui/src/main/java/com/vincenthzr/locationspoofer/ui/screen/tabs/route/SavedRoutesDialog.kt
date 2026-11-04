@@ -29,6 +29,7 @@ import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.data.model.AppState
 import com.vincenthzr.locationspoofer.ui.components.AppMapController
 import com.vincenthzr.locationspoofer.ui.theme.AccentBlue
+import com.vincenthzr.locationspoofer.ui.theme.AccentGreen
 import com.vincenthzr.locationspoofer.viewmodel.MainViewModel
 import com.vincenthzr.locationspoofer.viewmodel.deleteSavedRoute
 import com.vincenthzr.locationspoofer.viewmodel.loadSavedRoute
@@ -211,12 +212,31 @@ fun SavedRoutesDialog(
                                     Spacer(Modifier.width(12.dp))
 
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            route.name,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.5.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                route.name,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.5.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            // GPS 轨迹录制的路线加个小标记，和手动选点的路线区分开
+                                            if (route.isTrajectory) {
+                                                Spacer(Modifier.width(6.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(AccentGreen.copy(alpha = 0.16f))
+                                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                ) {
+                                                    Text(
+                                                        stringResource(R.string.route_source_trajectory),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = AccentGreen
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Spacer(Modifier.height(2.dp))
                                         Text(
                                             stringResource(

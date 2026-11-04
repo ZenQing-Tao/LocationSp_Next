@@ -689,4 +689,8 @@ Error details: %s</string>
     <string name="trajectory_name_hint">Leave empty for a default name</string>
     <string name="trajectory_default_name">Recorded trajectory</string>
     <string name="trajectory_save">Save</string>
+    <string name="route_source_trajectory">Trajectory</string>
+    <string name="trajectory_saved_to_route_library">Trajectory saved to the route library</string>
+    <string name="trajectory_go_to_library">Open route library</string>
+    <string name="trajectory_not_saved">Not saved</string>
 </resources>

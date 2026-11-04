@@ -689,4 +689,8 @@
     <string name="trajectory_name_hint">留空则使用默认名称</string>
     <string name="trajectory_default_name">录制的轨迹</string>
     <string name="trajectory_save">保存</string>
+    <string name="route_source_trajectory">轨迹</string>
+    <string name="trajectory_saved_to_route_library">轨迹已保存到路线库</string>
+    <string name="trajectory_go_to_library">打开路线库</string>
+    <string name="trajectory_not_saved">不保存</string>
 </resources>

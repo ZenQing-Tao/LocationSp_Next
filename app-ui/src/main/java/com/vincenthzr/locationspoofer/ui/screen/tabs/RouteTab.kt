@@ -85,8 +85,6 @@ import com.vincenthzr.locationspoofer.viewmodel.toggleMockBluetooth
 import com.vincenthzr.locationspoofer.viewmodel.toggleMockCell
 import com.vincenthzr.locationspoofer.viewmodel.toggleMockWifi
 import com.vincenthzr.locationspoofer.viewmodel.undoLastRoutePoint
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -107,9 +105,13 @@ fun RouteTab(
     var showConfigDialog by remember { mutableStateOf(false) }
     var showSaveRouteDialog by remember { mutableStateOf(false) }
     var showSavedRoutesDialog by remember { mutableStateOf(false) }
-    // 原生定位冷却：避免连续点击反复发起定位请求（与首页定位按钮保持一致）
-    var locatingByUser by remember { mutableStateOf(false) }
-    val locatingScope = rememberCoroutineScope()
+
+    // 轨迹保存成功后自动打开路线库弹窗（trajectorySavedCounter 由录制页递增）
+    LaunchedEffect(uiState.trajectorySavedCounter) {
+        if (uiState.trajectorySavedCounter > 0) {
+            showSavedRoutesDialog = true
+        }
+    }
     val isDomestic = viewModel.isDomesticEnvironment()
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<AppPoiItem>>(emptyList()) }
@@ -447,22 +449,14 @@ fun RouteTab(
                             icon = Icons.Rounded.Bookmarks,
                             onClick = { showSavedRoutesDialog = true }
                         )
-                        Box(modifier = Modifier.alpha(if (locatingByUser) 0.30f else 1f)) {
-                            RouteControlButton(
-                                icon = Icons.Rounded.MyLocation,
-                                onClick = {
-                                    if (locatingByUser) return@RouteControlButton
-                                    locatingByUser = true
-                                    viewModel.fetchCurrentLocation(context) { lat, lng ->
-                                        mapController?.animateCamera(lat, lng, 16f)
-                                    }
-                                    locatingScope.launch {
-                                        kotlinx.coroutines.delay(3_000L)
-                                        locatingByUser = false
-                                    }
+                        RouteControlButton(
+                            icon = Icons.Rounded.MyLocation,
+                            onClick = {
+                                viewModel.fetchCurrentLocation(context) { lat, lng ->
+                                    mapController?.animateCamera(lat, lng, 16f)
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
                 }
 

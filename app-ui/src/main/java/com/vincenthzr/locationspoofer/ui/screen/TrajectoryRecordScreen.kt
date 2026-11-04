@@ -28,6 +28,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vincenthzr.locationspoofer.data.model.AppState
+import com.vincenthzr.locationspoofer.ui.components.AppMapController
+import com.vincenthzr.locationspoofer.ui.components.AppMapMarker
+import com.vincenthzr.locationspoofer.ui.components.AppMapView
+import com.vincenthzr.locationspoofer.ui.components.MarkerType
+import com.vincenthzr.locationspoofer.viewmodel.isDomesticEnvironment
+import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
 import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
 import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.ui.theme.AccentBlue
@@ -54,7 +60,9 @@ fun TrajectoryRecordScreen(
     viewModel: MainViewModel,
     uiState: AppState,
     isDark: Boolean = isSystemInDarkTheme(),
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    /** 跳到路线页并打开路线库弹窗 */
+    onGoToRouteLibrary: () -> Unit
 ) {
     BackHandler(onBack = onClose)
     val context = LocalContext.current
@@ -63,12 +71,54 @@ fun TrajectoryRecordScreen(
     LaunchedEffect(Unit) { viewModel.pollRecordingStats() }
 
     val recording = uiState.isTrajectoryRecording
+    // 地图：录制时实时显示已走过的轨迹与当前位置
+    var mapController by remember { mutableStateOf<AppMapController?>(null) }
+    var liveMarker by remember { mutableStateOf<AppMapMarker?>(null) }
+    // 已录点数的版本号：变化时重画折线（每秒由轮询递增）
+    var drawnPointCount by remember { mutableStateOf(0) }
+    // 已录点数的版本号：变化时重画折线
+    var drawnPointCount by remember { mutableStateOf(0) }
+
+    // 每秒把服务里最新的采样画到地图上
+    // 每秒把服务里最新的采样画到地图上
+    LaunchedEffect(uiState.trajectoryStats.pointCount) {
+        val controller = mapController ?: return@LaunchedEffect
+        val samples = TrajectoryRecordService.rawPoints
+        if (samples.isEmpty()) {
+            controller.clear()
+            liveMarker = null
+            drawnPointCount = 0
+            return@LaunchedEffect
+        }
+        // 点数没变就不用重画（避免每秒闪烁）
+        if (samples.size != drawnPointCount) {
+            controller.clear()
+            val pts = samples.map { it.lat to it.lng }
+            if (pts.size >= 2) {
+                controller.addPolyline(pts, ACCENT_ORANGE, 8f)
+            }
+            val first = samples.first()
+            controller.addMarker(first.lat, first.lng, "", MarkerType.GREEN)
+            val last = samples.last()
+            controller.addMarker(last.lat, last.lng, "", MarkerType.RED)
+            liveMarker = controller.addMarker(last.lat, last.lng, "", MarkerType.ORANGE)
+            // 视野跟随已录范围
+            controller.fitBounds(pts, 60)
+            drawnPointCount = samples.size
+        } else if (liveMarker != null) {
+            val last = samples.last()
+            liveMarker?.setPosition(last.lat, last.lng)
+        }
+    }
+
     val stats = uiState.trajectoryStats
     // stringResource 只能在 Composable 上下文取，这里先取好，供按钮回调里使用
     val defaultName = stringResource(R.string.trajectory_default_name)
 
     // 录制结束 → 弹出命名框（输入框内容本地保存，确认后才落库）
     var naming by remember { mutableStateOf(false) }
+    var savedToLibrary by remember { mutableStateOf(false) }
+    var savedToLibrary by remember { mutableStateOf(false) }
     var nameInput by remember { mutableStateOf("") }
     LaunchedEffect(uiState.pendingTrajectoryPoints.size) {
         if (uiState.pendingTrajectoryPoints.isNotEmpty() && !naming) {
@@ -121,7 +171,28 @@ fun TrajectoryRecordScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 录制控制卡
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .clip(RoundedCornerShape(16.dp))
+            ) {
+                AppMapView(
+                    mapEngine = uiState.mapEngine,
+                    isDomestic = viewModel.isDomesticEnvironment(),
+                    modifier = Modifier.fillMaxSize(),
+                    onMapReady = { controller ->
+                        mapController = controller
+                        controller.disableUiControls()
+                        val samples = TrajectoryRecordService.rawPoints
+                        if (samples.isNotEmpty()) {
+                            controller.fitBounds(samples.map { it.lat to it.lng }, 60)
+                        }
+                    }
+                )
+            }
+
+            // 地图：实时显示正在录制的轨迹（录制前显示空地图，录制后可见已走路径）
             MiuixCard(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 18.dp,
@@ -293,6 +364,8 @@ fun TrajectoryRecordScreen(
                         nameInput.ifBlank { defaultName },
                         pts
                     )
+                    savedToLibrary = true
+                    savedToLibrary = true
                     viewModel.discardPendingTrajectory()
                 }) { Text(stringResource(R.string.trajectory_save)) }
             },
@@ -304,7 +377,59 @@ fun TrajectoryRecordScreen(
             }
         )
     }
+
+    // 轨迹已保存到路线库：提示用户，并给出跳转到路线库的入口
+    if (savedToLibrary) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { savedToLibrary = false },
+            title = { Text(stringResource(R.string.trajectory_saved_to_route_library)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.trajectory_saved_to_route_library),
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    savedToLibrary = false
+                    onGoToRouteLibrary()
+                }) { Text(stringResource(R.string.trajectory_go_to_library)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { savedToLibrary = false }) {
+                    Text(stringResource(R.string.trajectory_not_saved))
+                }
+            }
+        )
+    }
+
+    // 轨迹已保存到路线库：提示用户，并给出跳转到路线库的入口
+    if (savedToLibrary) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { savedToLibrary = false },
+            title = { Text(stringResource(R.string.trajectory_saved_to_route_library)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.trajectory_saved_to_route_library),
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    savedToLibrary = false
+                    onGoToRouteLibrary()
+                }) { Text(stringResource(R.string.trajectory_go_to_library)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { savedToLibrary = false }) {
+                    Text(stringResource(R.string.trajectory_not_saved))
+                }
+            }
+        )
+    }
 }
+
+private const val ACCENT_ORANGE = 0xFFFF8A00.toInt()
 
 @Composable
 private fun PrimaryButton(

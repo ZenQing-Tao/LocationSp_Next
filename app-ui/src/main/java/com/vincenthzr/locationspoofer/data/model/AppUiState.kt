@@ -90,6 +90,11 @@ data class AppState(
     val savedTrajectories: List<TrajectoryListItem> = emptyList(),
     /** 录制结束、等待命名保存的轨迹点（非空即弹出命名框） */
     val pendingTrajectoryPoints: List<com.vincenthzr.locationspoofer.utils.TrajectoryPoint> = emptyList(),
+    /**
+     * 递增计数：轨迹保存成功后 +1。
+     * 路线页监听它并自动打开路线库弹窗——用计数而不是布尔值，保证连续保存多条时每次都能触发。
+     */
+    val trajectorySavedCounter: Int = 0,
     /** 已录制步态模板的步频（步/分钟），null 表示尚未录制 */
     val gaitTemplateCadence: Int? = null,
     val gaitTemplateStrides: Int = 0,

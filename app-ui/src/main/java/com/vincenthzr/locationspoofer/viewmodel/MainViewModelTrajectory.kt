@@ -142,6 +142,8 @@ internal fun MainViewModel.saveTrajectory(
             }
 
             refreshTrajectoryStats()
+            // 通知界面：已保存到路线库（路线页会据此跳过去）
+            _uiState.update { it.copy(trajectorySavedCounter = it.trajectorySavedCounter + 1) }
             launch(Dispatchers.Main) {
                 Toast.makeText(context, context.getString(R.string.trajectory_saved_toast), Toast.LENGTH_SHORT).show()
             }

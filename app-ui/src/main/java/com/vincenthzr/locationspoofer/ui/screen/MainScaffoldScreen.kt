@@ -452,7 +452,12 @@ fun MainScaffoldScreen(
                         viewModel = viewModel,
                         uiState = uiState,
                         isDark = isDark,
-                        onClose = { currentSubScreen = MainSubScreen.None }
+                        onClose = { currentSubScreen = MainSubScreen.None },
+                        onGoToRouteLibrary = {
+                            // 回到路线页；路线库弹窗由 trajectorySavedCounter 触发自动打开
+                            currentSubScreen = MainSubScreen.None
+                            selectedTab = BottomTab.Route.ordinal
+                        }
                     )
                     MainSubScreen.SystemHookApps -> SystemHookAppsScreen(
                         viewModel = viewModel,

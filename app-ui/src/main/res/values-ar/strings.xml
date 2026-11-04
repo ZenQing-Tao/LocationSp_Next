@@ -501,4 +501,8 @@
     <string name="trajectory_name_hint">اتركه فارغاً لاستخدام اسم افتراضي</string>
     <string name="trajectory_default_name">مسار مسجل</string>
     <string name="trajectory_save">حفظ</string>
+    <string name="route_source_trajectory">مسار</string>
+    <string name="trajectory_saved_to_route_library">تم حفظ المسار في مكتبة المسارات</string>
+    <string name="trajectory_go_to_library">فتح مكتبة المسارات</string>
+    <string name="trajectory_not_saved">عدم الحفظ</string>
 </resources>
