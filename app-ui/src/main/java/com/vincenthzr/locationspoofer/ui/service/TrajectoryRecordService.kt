@@ -66,7 +66,7 @@ class TrajectoryRecordService : Service() {
             val lat: Double,
             val lng: Double,
             val tOffsetSec: Double,
-            val accuracyM: Float
+            val accuracyM: Float,
             /** 行进方向（度，正北 0，顺时针）；无 bearing 时为 NaN */
             val bearingDeg: Double = Double.NaN
         )

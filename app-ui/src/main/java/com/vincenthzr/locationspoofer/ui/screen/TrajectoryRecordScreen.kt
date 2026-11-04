@@ -35,8 +35,6 @@ import com.vincenthzr.locationspoofer.ui.components.AppMapView
 import com.vincenthzr.locationspoofer.ui.components.MarkerType
 import com.vincenthzr.locationspoofer.utils.TrajectoryGeometry
 import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
-import com.vincenthzr.locationspoofer.utils.TrajectoryGeometry
-import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
 import com.vincenthzr.locationspoofer.viewmodel.isDomesticEnvironment
 import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
 import com.vincenthzr.locationspoofer.ui.R
@@ -105,15 +103,6 @@ fun TrajectoryRecordScreen(
             val last = samples.last()
             controller.addMarker(last.lat, last.lng, "", MarkerType.RED)
             liveMarker = controller.addMarker(last.lat, last.lng, "", MarkerType.ORANGE)
-            // 绿色 V 形箭头：指向行进方向（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
-            val heading = TrajectoryGeometry.headingAt(
-                points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
-                index = samples.size - 1,
-                gpsBearingDeg = samples.last().bearingDeg.takeIf { !it.isNaN() }
-            )
-            val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
-            controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
-            controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
             // 绿色 V 形箭头：指向行进方向（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
             val heading = TrajectoryGeometry.headingAt(
                 points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
@@ -484,9 +473,6 @@ fun TrajectoryRecordScreen(
 
 private const val ACCENT_ORANGE = 0xFFFF8A00.toInt()
 /** 朝向箭头颜色（绿色，与橙色轨迹区分） */
-private const val ARROW_COLOR = 0xFF00B578.toInt()
-/** 朝向箭头颜色（绿色，与橙色轨迹区分） */
-private const val ARROW_COLOR = 0xFF00B578.toInt()
 
 @Composable
 private fun PrimaryButton(
