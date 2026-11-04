@@ -34,7 +34,6 @@ import com.vincenthzr.locationspoofer.ui.components.AppMapView
 import com.vincenthzr.locationspoofer.ui.components.MarkerType
 import com.vincenthzr.locationspoofer.viewmodel.isDomesticEnvironment
 import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
-import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
 import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.ui.theme.AccentBlue
 import com.vincenthzr.locationspoofer.ui.theme.AccentGreen
@@ -77,9 +76,7 @@ fun TrajectoryRecordScreen(
     // 已录点数的版本号：变化时重画折线（每秒由轮询递增）
     var drawnPointCount by remember { mutableStateOf(0) }
     // 已录点数的版本号：变化时重画折线
-    var drawnPointCount by remember { mutableStateOf(0) }
 
-    // 每秒把服务里最新的采样画到地图上
     // 每秒把服务里最新的采样画到地图上
     LaunchedEffect(uiState.trajectoryStats.pointCount) {
         val controller = mapController ?: return@LaunchedEffect
@@ -117,7 +114,6 @@ fun TrajectoryRecordScreen(
 
     // 录制结束 → 弹出命名框（输入框内容本地保存，确认后才落库）
     var naming by remember { mutableStateOf(false) }
-    var savedToLibrary by remember { mutableStateOf(false) }
     var savedToLibrary by remember { mutableStateOf(false) }
     var nameInput by remember { mutableStateOf("") }
     LaunchedEffect(uiState.pendingTrajectoryPoints.size) {

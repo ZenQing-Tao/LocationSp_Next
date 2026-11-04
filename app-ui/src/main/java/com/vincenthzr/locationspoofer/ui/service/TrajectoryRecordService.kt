@@ -16,6 +16,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.vincenthzr.locationspoofer.ui.R
+import com.vincenthzr.locationspoofer.utils.CoordinateUtils
 import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -124,8 +125,18 @@ class TrajectoryRecordService : Service() {
         startTimestamp = System.currentTimeMillis()
         isRecording = true
 
-        // GPS 与网络定位都注册：室内可能只有网络定位，室外 GPS 更准
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        // 只用一个 provider 采样：**绝不能同时注册 GPS 和网络定位**。
+        // 网络定位是基站推算的粗略位置（可偏差几百米），与精确的 GPS 交替上报时，
+        // 路径会在两个位置之间来回跳，每一跳都计入累计距离 —— 实测站着不动能累出 3.7 km。
+        // 录制场景本就在户外，GPS 是唯一可靠来源；GPS 不可用时再降级到网络定位。
+        val providers = buildList {
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                add(LocationManager.GPS_PROVIDER)
+            }
+            if (isEmpty() && locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                add(LocationManager.NETWORK_PROVIDER)
+            }
+        }
         val l = object : LocationListener {
             override fun onLocationChanged(location: Location) = handleLocation(location)
             override fun onProviderEnabled(provider: String) {}
@@ -156,7 +167,10 @@ class TrajectoryRecordService : Service() {
         if (!accuracy.isNaN() && accuracy > MAX_ACCURACY_M) return
         // 时间戳用系统当前时间（与 startTimestamp 同源），不依赖 provider 的时间
         val t = (System.currentTimeMillis() - startTimestamp) / 1000.0
-        rawPoints.add(RawSample(location.latitude, location.longitude, t, accuracy))
+        // Android GPS 返回的是 WGS-84，而本项目内部统一用 GCJ-02（底图与模拟都是 GCJ-02）。
+        // 不转换会导致：① 轨迹在地图上整体偏移 500~600 米；② 与 GCJ-02 底图/其它数据混算时距离虚高。
+        val gcj = CoordinateUtils.wgs84ToGcj02(location.latitude, location.longitude)
+        rawPoints.add(RawSample(gcj.lat, gcj.lng, t, accuracy))
     }
 
     private fun stopRecording() {
