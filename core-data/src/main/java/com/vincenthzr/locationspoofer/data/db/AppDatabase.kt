@@ -15,7 +15,7 @@ import androidx.room.RoomDatabase
         SavedRouteEntity::class, CollectionRouteRecord::class,
         TrajectoryEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,6 +46,13 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_location_records_lat_lng ON location_records(lat, lng)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_location_records_timestamp ON location_records(timestamp)")
+            }
+        }
+
+        private val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // 增加来源标记列：空串 = 普通路线，trajectory = GPS 轨迹录制
+                db.execSQL("ALTER TABLE saved_routes ADD COLUMN source TEXT NOT NULL DEFAULT ''")
             }
         }
 
@@ -80,7 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "environment_database"
                 )
-                    .addMigrations(MIGRATION_3_4, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

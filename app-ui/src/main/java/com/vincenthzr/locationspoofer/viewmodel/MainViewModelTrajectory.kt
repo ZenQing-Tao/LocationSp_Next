@@ -6,6 +6,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.lifecycle.viewModelScope
 import com.vincenthzr.locationspoofer.data.db.TrajectoryEntity
+import com.vincenthzr.locationspoofer.data.model.RoutePoint
 import com.vincenthzr.locationspoofer.data.model.TrajectoryListItem
 import com.vincenthzr.locationspoofer.data.model.TrajectoryStats
 import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
@@ -130,6 +131,16 @@ internal fun MainViewModel.saveTrajectory(
                 pointCount = points.size
             )
             locationRepository.insertTrajectory(entity)
+
+            // 双写：同时写进路线库（saved_routes），这样录完的轨迹就是一条普通路线，
+            // 在路线库里点一下即可像普通路线一样选配速、循环/折返地模拟。
+            // 写 Room 表而不是 SharedPreferences —— 路线库界面读的是 Room 那边。
+            val smoothed = TrajectoryTrack(points).smooth()
+            val routePoints = smoothed.map { RoutePoint(it.lat, it.lng) }
+            if (routePoints.size >= 2) {
+                locationRepository.insertTrajectoryRoute(entity.name, routePoints)
+            }
+
             refreshTrajectoryStats()
             launch(Dispatchers.Main) {
                 Toast.makeText(context, context.getString(R.string.trajectory_saved_toast), Toast.LENGTH_SHORT).show()

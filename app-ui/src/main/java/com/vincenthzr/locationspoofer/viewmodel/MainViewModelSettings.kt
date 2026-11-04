@@ -124,7 +124,12 @@ internal fun MainViewModel.initialize() {
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-                com.vincenthzr.locationspoofer.data.model.SavedRoute(entity.name, points).apply {
+                com.vincenthzr.locationspoofer.data.model.SavedRoute(
+                    entity.name,
+                    points,
+                    isTrajectory = entity.source ==
+                        com.vincenthzr.locationspoofer.data.repository.LocationRepository.SOURCE_TRAJECTORY
+                ).apply {
                     // 如果需要，动态附加 ID，或者直接使用名称进行删除
                     // 目前 MapScreen 的 showSavedRoutesDialog 使用 route.name
                 }

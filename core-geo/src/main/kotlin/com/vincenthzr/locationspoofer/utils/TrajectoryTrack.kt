@@ -126,6 +126,55 @@ class TrajectoryTrack(val points: List<TrajectoryPoint>) {
     }
 
     /**
+     * 平滑：把密集的 GPS 采样点收敛成一条干净的路点序列。
+     *
+     * 与 [filter] 的区别：filter 是"剔除坏点"（跳点、精度差），保留真实运动细节；
+     * 本方法是"简化路径"——相邻太近的点合并掉，让路径不锯齿、点数可控。
+     *
+     * 规则（与用户确认一致）：
+     * 1. 与上一个保留点距离 < [minDistanceM]（默认 2 米）时合并；
+     * 2. 但**转角处必须保留**：即使距离很近，只要转向超过 [turnThresholdDeg]，也保留该点
+     *    （否则直角的拐点会被抹平，路径穿墙）。
+     *
+     * 输出仍是带时间戳的轨迹点，时间戳取被保留点的原值。
+     */
+    fun smooth(
+        minDistanceM: Double = DEFAULT_SMOOTH_MIN_DISTANCE_M,
+        turnThresholdDeg: Double = DEFAULT_TURN_THRESHOLD_DEG
+    ): List<TrajectoryPoint> {
+        if (points.size <= 2) return points
+        val out = ArrayList<TrajectoryPoint>()
+        out.add(points.first())
+        for (i in 1 until points.size) {
+            val p = points[i]
+            val prev = out.last()
+            val d = GeoMath.distance(
+                CoordinateUtils.LatLng(prev.lat, prev.lng),
+                CoordinateUtils.LatLng(p.lat, p.lng)
+            )
+            if (d >= minDistanceM) {
+                out.add(p)
+                continue
+            }
+            // 距离太近：只有转向明显时才保留（拐点不能被抹平）
+            if (out.size < 2) continue
+            val prev2 = out[out.size - 2]
+            val b1 = GeoMath.bearing(
+                CoordinateUtils.LatLng(prev2.lat, prev2.lng),
+                CoordinateUtils.LatLng(prev.lat, prev.lng)
+            )
+            val b2 = GeoMath.bearing(
+                CoordinateUtils.LatLng(prev.lat, prev.lng),
+                CoordinateUtils.LatLng(p.lat, p.lng)
+            )
+            val raw = abs(b1 - b2) % 360f
+            val diff = min(raw, 360f - raw)
+            if (diff >= turnThresholdDeg) out.add(p)
+        }
+        return out
+    }
+
+    /**
      * 采样过滤：把原始 GPS 点收敛成适合回放的轨迹点。
      *
      * 过滤规则（针对真实 GPS 的漂移与跳点）：
@@ -141,6 +190,9 @@ class TrajectoryTrack(val points: List<TrajectoryPoint>) {
         const val DEFAULT_MAX_ACCURACY_M = 30.0
         const val DEFAULT_MAX_SPEED_MPS = 12.0
         const val DEFAULT_TURN_THRESHOLD_DEG = 20.0
+        /** 平滑时两点合并的最小距离（米） */
+        const val DEFAULT_SMOOTH_MIN_DISTANCE_M = 2.0
+        /** 平滑时两点合并的最小距离（米） */
 
         fun filter(
             raw: List<TrajectoryPoint>,

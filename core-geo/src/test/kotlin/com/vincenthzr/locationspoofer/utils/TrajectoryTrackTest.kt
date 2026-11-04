@@ -146,4 +146,130 @@ class TrajectoryTrackTest {
         assertTrue(t.speedAt(0.0) >= 0.0)
         assertEquals(2.0, t.durationSec, 1e-9)
     }
+
+    // ==============================================================
+    // 平滑：把密集 GPS 采样简化成干净的路点序列
+    // ==============================================================
+
+    @Test
+    fun `smooth merges points closer than the minimum distance`() {
+        // 每米一个点，最小距离 2 米 → 应被压缩掉一半左右
+        val raw = (0..30).map { m ->
+            val p = GeoMath.destination(start, 0.0, m.toDouble())
+            TrajectoryPoint(p.lat, p.lng, m.toDouble())
+        }
+        val out = TrajectoryTrack(raw).smooth()
+        assertTrue("out=${out.size}", out.size <= 17)
+        assertTrue("out=${out.size}", out.size >= 2)
+    }
+
+    @Test
+    fun `smooth keeps the corner point even when it is close`() {
+        // 直行 10 米后急转 90 度走 1 米：转角必须保留，否则路径会切墙角
+        val a = GeoMath.destination(start, 0.0, 10.0)
+        val turn = GeoMath.destination(a, 90.0, 1.0)
+        val raw = listOf(
+            TrajectoryPoint(start.lat, start.lng, 0.0),
+            TrajectoryPoint(a.lat, a.lng, 5.0),
+            TrajectoryPoint(turn.lat, turn.lng, 6.0)
+        )
+        val out = TrajectoryTrack(raw).smooth()
+        assertEquals(3, out.size)
+    }
+
+    @Test
+    fun `smooth keeps widely spaced points untouched`() {
+        val raw = (0..10).map { m ->
+            val p = GeoMath.destination(start, 0.0, m * 10.0)
+            TrajectoryPoint(p.lat, p.lng, m.toDouble())
+        }
+        assertEquals(11, TrajectoryTrack(raw).smooth().size)
+    }
+
+    @Test
+    fun `smooth returns short tracks unchanged`() {
+        val one = listOf(TrajectoryPoint(start.lat, start.lng, 0.0))
+        assertEquals(1, TrajectoryTrack(one).smooth().size)
+        val a = GeoMath.destination(start, 0.0, 1.0)
+        val two = listOf(
+            TrajectoryPoint(start.lat, start.lng, 0.0),
+            TrajectoryPoint(a.lat, a.lng, 1.0)
+        )
+        assertEquals(2, TrajectoryTrack(two).smooth().size)
+    }
+
+    @Test
+    fun `smooth preserves timestamp order`() {
+        val raw = (0..30).map { m ->
+            val p = GeoMath.destination(start, 0.0, m.toDouble())
+            TrajectoryPoint(p.lat, p.lng, m.toDouble())
+        }
+        val out = TrajectoryTrack(raw).smooth()
+        for (i in 1 until out.size) {
+            assertTrue(out[i - 1].tOffsetSec <= out[i].tOffsetSec)
+        }
+    }
+
+    // ==============================================================
+    // 平滑：把密集 GPS 采样简化成干净的路点序列
+    // ==============================================================
+
+    @Test
+    fun `smooth merges points closer than the minimum distance`() {
+        // 每米一个点，最小距离 2 米 → 应被压缩掉一半左右
+        val raw = (0..30).map { m ->
+            val p = GeoMath.destination(start, 0.0, m.toDouble())
+            TrajectoryPoint(p.lat, p.lng, m.toDouble())
+        }
+        val out = TrajectoryTrack(raw).smooth()
+        assertTrue("out=${out.size}", out.size <= 17)
+        assertTrue("out=${out.size}", out.size >= 2)
+    }
+
+    @Test
+    fun `smooth keeps the corner point even when it is close`() {
+        // 直行 10 米后急转 90 度走 1 米：转角必须保留，否则路径会切墙角
+        val a = GeoMath.destination(start, 0.0, 10.0)
+        val turn = GeoMath.destination(a, 90.0, 1.0)
+        val raw = listOf(
+            TrajectoryPoint(start.lat, start.lng, 0.0),
+            TrajectoryPoint(a.lat, a.lng, 5.0),
+            TrajectoryPoint(turn.lat, turn.lng, 6.0)
+        )
+        val out = TrajectoryTrack(raw).smooth()
+        assertEquals(3, out.size)
+    }
+
+    @Test
+    fun `smooth keeps widely spaced points untouched`() {
+        val raw = (0..10).map { m ->
+            val p = GeoMath.destination(start, 0.0, m * 10.0)
+            TrajectoryPoint(p.lat, p.lng, m.toDouble())
+        }
+        assertEquals(11, TrajectoryTrack(raw).smooth().size)
+    }
+
+    @Test
+    fun `smooth returns short tracks unchanged`() {
+        val one = listOf(TrajectoryPoint(start.lat, start.lng, 0.0))
+        assertEquals(1, TrajectoryTrack(one).smooth().size)
+        val a = GeoMath.destination(start, 0.0, 1.0)
+        val two = listOf(
+            TrajectoryPoint(start.lat, start.lng, 0.0),
+            TrajectoryPoint(a.lat, a.lng, 1.0)
+        )
+        assertEquals(2, TrajectoryTrack(two).smooth().size)
+    }
+
+    @Test
+    fun `smooth preserves timestamp order`() {
+        val raw = (0..30).map { m ->
+            val p = GeoMath.destination(start, 0.0, m.toDouble())
+            TrajectoryPoint(p.lat, p.lng, m.toDouble())
+        }
+        val out = TrajectoryTrack(raw).smooth()
+        for (i in 1 until out.size) {
+            assertTrue(out[i - 1].tOffsetSec <= out[i].tOffsetSec)
+        }
+    }
 }
