@@ -202,6 +202,41 @@ class SettingsRepository(private val settingsManager: SettingsManager) {
             settingsManager.speedFluctuationPct = value
         }
 
+    /** 3.2.0 配速曲线：每公里配速浮动（秒），0 = 严格匀速 */
+    var paceVariationSec: Int
+        get() = settingsManager.paceVariationSec
+        set(value) {
+            settingsManager.paceVariationSec = value
+        }
+
+    /** 3.2.0 配速曲线：体力衰减 0 关 / 1 弱 / 2 强 */
+    var fatigueLevel: Int
+        get() = settingsManager.fatigueLevel
+        set(value) {
+            settingsManager.fatigueLevel = value
+        }
+
+    /** 3.2.0 配速曲线：首公里偏快（秒，负数=更快） */
+    var firstKmBiasSec: Int
+        get() = settingsManager.firstKmBiasSec
+        set(value) {
+            settingsManager.firstKmBiasSec = value
+        }
+
+    /** 录制轨迹时自动闭合起终点（起终点相近时） */
+    var autoCloseTrajectoryLoop: Boolean
+        get() = settingsManager.autoCloseTrajectoryLoop
+        set(value) {
+            settingsManager.autoCloseTrajectoryLoop = value
+        }
+
+    /** 3.2.0 配速曲线：开始掉速的里程（公里，一位小数字符串） */
+    var fatigueStartKm: String
+        get() = settingsManager.fatigueStartKm
+        set(value) {
+            settingsManager.fatigueStartKm = value
+        }
+
     var gaitTemplate: String
         get() = settingsManager.gaitTemplate
         set(value) {

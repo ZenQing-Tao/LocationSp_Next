@@ -155,6 +155,38 @@ class SettingsManager(context: Context) {
         get() = prefs.getInt("speed_fluctuation_pct", MotionRealism.DEFAULT_SPEED_FLUCTUATION_PCT)
         set(value) = prefs.edit().putInt("speed_fluctuation_pct", value).apply()
 
+    /** 3.2.0 配速曲线：每公里配速浮动幅度（秒），0 表示严格匀速 */
+    var paceVariationSec: Int
+        get() = prefs.getInt("pace_variation_sec", 0)
+        set(value) = prefs.edit().putInt("pace_variation_sec", value.coerceIn(0, 30)).apply()
+
+    /** 3.2.0 配速曲线：体力衰减档位，0 关 / 1 弱 / 2 强 */
+    var fatigueLevel: Int
+        get() = prefs.getInt("fatigue_level", 0)
+        set(value) = prefs.edit().putInt("fatigue_level", value.coerceIn(0, 2)).apply()
+
+    /** 3.2.0 配速曲线：首公里偏快（秒，负数=更快），0 表示不偏 */
+    var firstKmBiasSec: Int
+        get() = prefs.getInt("first_km_bias_sec", 0)
+        set(value) = prefs.edit().putInt("first_km_bias_sec", value.coerceIn(-30, 0)).apply()
+
+    /**
+     * 录制轨迹时：起终点相近时自动把终点连回起点，形成闭环。
+     * 真人绕一圈回到起点附近时，直接折返会在“终点 → 起点”之间拉出一条
+     * 横穿地图的直线，看起来很假；闭合后就是自然的循环。
+     */
+    var autoCloseTrajectoryLoop: Boolean
+        get() = prefs.getBoolean("auto_close_trajectory_loop", true)
+        set(value) = prefs.edit().putBoolean("auto_close_trajectory_loop", value).apply()
+
+    /**
+     * 3.2.0 配速曲线：开始掉速的里程（公里，保留一位小数，默认 "2.0"）。
+     * 用字符串存是为了让输入框能保留用户正在编辑的半截内容（如 "2."）。
+     */
+    var fatigueStartKm: String
+        get() = prefs.getString("fatigue_start_km", "2.0") ?: "2.0"
+        set(value) = prefs.edit().putString("fatigue_start_km", value).apply()
+
     /** 录制的个人步态模板（GaitTemplate.encode() 的结果），空串表示未录制 */
     var gaitTemplate: String
         get() = prefs.getString("gait_template", "") ?: ""

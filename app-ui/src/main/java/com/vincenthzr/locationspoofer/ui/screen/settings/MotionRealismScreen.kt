@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vincenthzr.locationspoofer.data.model.AppState
@@ -44,6 +46,10 @@ import com.vincenthzr.locationspoofer.viewmodel.deleteGaitTemplate
 import com.vincenthzr.locationspoofer.viewmodel.dismissGaitRecordingResult
 import com.vincenthzr.locationspoofer.viewmodel.setRealismLevel
 import com.vincenthzr.locationspoofer.viewmodel.setSpeedFluctuationPct
+import com.vincenthzr.locationspoofer.viewmodel.setPaceVariationSec
+import com.vincenthzr.locationspoofer.viewmodel.setFatigueLevel
+import com.vincenthzr.locationspoofer.viewmodel.setFirstKmBiasSec
+import com.vincenthzr.locationspoofer.viewmodel.setFatigueStartKm
 import com.vincenthzr.locationspoofer.viewmodel.setUseGaitTemplate
 import com.vincenthzr.locationspoofer.viewmodel.startGaitRecording
 import kotlin.math.roundToInt
@@ -129,7 +135,10 @@ fun MotionRealismScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 RealismLevelCard(uiState, isDark) { viewModel.setRealismLevel(it) }
-                SpeedFluctuationCard(uiState) { viewModel.setSpeedFluctuationPct(it) }
+                PaceVariationCard(uiState, isDark) { viewModel.setPaceVariationSec(it) }
+                FatigueCard(uiState, isDark) { viewModel.setFatigueLevel(it) }
+                FatigueStartCard(uiState, isDark) { viewModel.setFatigueStartKm(it) }
+                FirstKmBiasCard(uiState, isDark) { viewModel.setFirstKmBiasSec(it) }
                 GaitCard(viewModel, uiState, isDark)
                 HintRow(stringResource(R.string.realism_next_session_hint), isDark)
                 Spacer(Modifier.height(16.dp))
@@ -207,39 +216,6 @@ private fun RealismLevelCard(uiState: AppState, isDark: Boolean, onSelect: (Int)
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SpeedFluctuationCard(uiState: AppState, onChange: (Int) -> Unit) {
-    MiuixCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp, insideMargin = PaddingValues(16.dp)) {
-        CardHeader(
-            Icons.Rounded.Speed,
-            AccentOrange,
-            stringResource(R.string.speed_fluctuation_title),
-            stringResource(R.string.speed_fluctuation_desc)
-        )
-        Spacer(Modifier.height(8.dp))
-        var local by remember(uiState.speedFluctuationPct) { mutableFloatStateOf(uiState.speedFluctuationPct.toFloat()) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Slider(
-                value = local,
-                onValueChange = { local = it },
-                onValueChangeFinished = { onChange(local.roundToInt()) },
-                valueRange = 0f..MotionRealism.MAX_SPEED_FLUCTUATION_PCT.toFloat(),
-                steps = MotionRealism.MAX_SPEED_FLUCTUATION_PCT / 5 - 1,
-                colors = SliderDefaults.colors(thumbColor = AccentOrange, activeTrackColor = AccentOrange),
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = stringResource(R.string.speed_fluctuation_value, local.roundToInt()),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = AccentOrange,
-                modifier = Modifier.widthIn(min = 48.dp)
-            )
         }
     }
 }
@@ -364,5 +340,143 @@ private fun HintRow(text: String, isDark: Boolean) {
         )
         Spacer(Modifier.width(8.dp))
         Text(text, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+    }
+}
+
+/**
+ * 3.2.0 配速曲线通用选项卡：与 RealismLevelCard 视觉一致，选项由 value/label 列表驱动。
+ */
+@Composable
+private fun OptionCard(
+    icon: ImageVector,
+    tint: Color,
+    title: String,
+    desc: String,
+    options: List<Pair<Int, String>>,
+    selectedValue: Int,
+    isDark: Boolean,
+    onSelect: (Int) -> Unit
+) {
+    MiuixCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp, insideMargin = PaddingValues(16.dp)) {
+        CardHeader(icon, tint, title, desc)
+        Spacer(Modifier.height(14.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { (value, label) ->
+                val selected = selectedValue == value
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (selected) tint
+                            else if (isDark) Color.White.copy(alpha = 0.05f)
+                            else Color.Black.copy(alpha = 0.04f)
+                        )
+                        .noRippleClickable { onSelect(value) }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                        fontSize = 12.5.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaceVariationCard(uiState: AppState, isDark: Boolean, onChange: (Int) -> Unit) {
+    MiuixCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp, insideMargin = PaddingValues(16.dp)) {
+        CardHeader(
+            Icons.Rounded.Speed,
+            AccentOrange,
+            stringResource(R.string.pace_variation_title),
+            stringResource(R.string.pace_variation_desc)
+        )
+        Spacer(Modifier.height(8.dp))
+        var local by remember(uiState.paceVariationSec) { mutableFloatStateOf(uiState.paceVariationSec.toFloat()) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Slider(
+                value = local,
+                onValueChange = { local = it },
+                onValueChangeFinished = { onChange(local.roundToInt()) },
+                valueRange = 0f..30f,
+                colors = SliderDefaults.colors(thumbColor = AccentOrange, activeTrackColor = AccentOrange),
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = if (local.roundToInt() == 0) "0s" else "±${local.roundToInt()}s",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = AccentOrange,
+                modifier = Modifier.widthIn(min = 56.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FatigueCard(uiState: AppState, isDark: Boolean, onSelect: (Int) -> Unit) {
+    OptionCard(
+        icon = Icons.AutoMirrored.Rounded.DirectionsWalk,
+        tint = AccentBlue,
+        title = stringResource(R.string.fatigue_title),
+        desc = stringResource(R.string.fatigue_desc),
+        options = listOf(
+            0 to stringResource(R.string.fatigue_off),
+            1 to stringResource(R.string.fatigue_weak),
+            2 to stringResource(R.string.fatigue_strong)
+        ),
+        selectedValue = uiState.fatigueLevel,
+        isDark = isDark,
+        onSelect = onSelect
+    )
+}
+
+@Composable
+private fun FirstKmBiasCard(uiState: AppState, isDark: Boolean, onSelect: (Int) -> Unit) {
+    OptionCard(
+        icon = Icons.Rounded.Shuffle,
+        tint = AccentGreen,
+        title = stringResource(R.string.first_km_title),
+        desc = stringResource(R.string.first_km_desc),
+        options = listOf(0 to "0s", -3 to "-3s", -6 to "-6s", -10 to "-10s"),
+        selectedValue = uiState.firstKmBiasSec,
+        isDark = isDark,
+        onSelect = onSelect
+    )
+}
+
+@Composable
+private fun FatigueStartCard(uiState: AppState, isDark: Boolean, onChange: (String) -> Unit) {
+    MiuixCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp, insideMargin = PaddingValues(16.dp)) {
+        CardHeader(
+            Icons.Rounded.Info,
+            AccentBlue,
+            stringResource(R.string.fatigue_start_title),
+            stringResource(R.string.fatigue_start_desc)
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = uiState.fatigueStartKm,
+                onValueChange = onChange,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = "km",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = AccentBlue
+            )
+        }
     }
 }

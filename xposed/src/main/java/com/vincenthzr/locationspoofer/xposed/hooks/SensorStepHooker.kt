@@ -296,6 +296,18 @@ object SensorStepHooker {
         val speed = config.optDouble("speed_m_s", 0.0)
         if (speed <= 0.05) return lastStepsFloat
 
+        // 3.2.0：路线模式下步数改由累计距离换算（见 RouteEngine.routeStepDelta），
+        // 与位置共用同一条配速曲线，保证“步数 × 步幅 = 里程”；开启浮动/力竭后也不会脱节。
+        if (config.optBoolean("is_route_mode", false)) {
+            // 加速度回调（高频）与每秒推送可能并发进到这里，累加必须与取增量原子化，否则会丢失步数
+            synchronized(this) {
+                val delta = RouteEngine.routeStepDelta(config, now)
+                if (delta > 0.0) stepBase += delta
+                lastStepsFloat = stepBase
+                return stepBase
+            }
+        }
+
         val elapsedSec = ((now - startTime).coerceAtLeast(0L)) / 1000.0
         val isAutoCadence = config.optBoolean("is_auto_cadence", true)
         val baseCadence = if (isAutoCadence) {

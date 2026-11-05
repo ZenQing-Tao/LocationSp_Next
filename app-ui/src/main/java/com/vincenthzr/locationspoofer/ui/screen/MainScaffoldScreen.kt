@@ -74,7 +74,8 @@ enum class MainSubScreen {
     MotionRealism,
     BackgroundKeepAlive,
     EnvTokens,
-    SystemHookApps
+    SystemHookApps,
+    TrajectoryRecord
 }
 
 @Composable
@@ -321,7 +322,8 @@ fun MainScaffoldScreen(
                             },
                             onNavigateToScanner = { currentSubScreen = MainSubScreen.ScannerMap },
                             onNavigateToManageData = { currentSubScreen = MainSubScreen.ManageData },
-                            onNavigateToSystemHookApps = { currentSubScreen = MainSubScreen.SystemHookApps }
+                            onNavigateToSystemHookApps = { currentSubScreen = MainSubScreen.SystemHookApps },
+                            onNavigateToTrajectory = { currentSubScreen = MainSubScreen.TrajectoryRecord }
                         )
 
                         BottomTab.Info.ordinal -> com.vincenthzr.locationspoofer.ui.screen.tabs.InfoTab(
@@ -446,6 +448,17 @@ fun MainScaffoldScreen(
                         onClose = { currentSubScreen = MainSubScreen.None }
                     )
 
+                    MainSubScreen.TrajectoryRecord -> com.vincenthzr.locationspoofer.ui.screen.TrajectoryRecordScreen(
+                        viewModel = viewModel,
+                        uiState = uiState,
+                        isDark = isDark,
+                        onClose = { currentSubScreen = MainSubScreen.None },
+                        onGoToRouteLibrary = {
+                            // 回到路线页；路线库弹窗由 trajectorySavedCounter 触发自动打开
+                            currentSubScreen = MainSubScreen.None
+                            selectedTab = BottomTab.Route.ordinal
+                        }
+                    )
                     MainSubScreen.SystemHookApps -> SystemHookAppsScreen(
                         viewModel = viewModel,
                         uiState = uiState,

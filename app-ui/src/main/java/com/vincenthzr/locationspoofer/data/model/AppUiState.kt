@@ -73,6 +73,32 @@ data class AppState(
     val debugDumpSystemServices: Boolean = false,
     val realismLevel: Int = MotionRealism.DEFAULT_LEVEL_ID,
     val speedFluctuationPct: Int = MotionRealism.DEFAULT_SPEED_FLUCTUATION_PCT,
+    /** 3.2.0 配速曲线：每公里配速浮动（秒），0 = 严格匀速 */
+    val paceVariationSec: Int = 0,
+    /** 3.2.0 配速曲线：体力衰减 0 关 / 1 弱 / 2 强 */
+    val fatigueLevel: Int = 0,
+    /** 3.2.0 配速曲线：首公里偏快（秒，负数=更快） */
+    val firstKmBiasSec: Int = 0,
+    /** 3.2.0 配速曲线：开始掉速的里程（公里，一位小数字符串） */
+    val fatigueStartKm: String = "2.0",
+    /** 录制轨迹时自动闭合起终点 */
+    val autoCloseTrajectoryLoop: Boolean = true,
+
+    /** 是否正在录制轨迹（真实 GPS） */
+    val isTrajectoryRecording: Boolean = false,
+    /** 正在等待 GPS 定位到精确原点（尚未开始记录路径） */
+    val awaitingTrajectoryOrigin: Boolean = false,
+    /** 录制中的实时统计 */
+    val trajectoryStats: TrajectoryStats = TrajectoryStats(),
+    /** 已保存的轨迹列表 */
+    val savedTrajectories: List<TrajectoryListItem> = emptyList(),
+    /** 录制结束、等待命名保存的轨迹点（非空即弹出命名框） */
+    val pendingTrajectoryPoints: List<com.vincenthzr.locationspoofer.utils.TrajectoryPoint> = emptyList(),
+    /**
+     * 递增计数：轨迹保存成功后 +1。
+     * 路线页监听它并自动打开路线库弹窗——用计数而不是布尔值，保证连续保存多条时每次都能触发。
+     */
+    val trajectorySavedCounter: Int = 0,
     /** 已录制步态模板的步频（步/分钟），null 表示尚未录制 */
     val gaitTemplateCadence: Int? = null,
     val gaitTemplateStrides: Int = 0,
@@ -175,4 +201,20 @@ data class AppState(
 
     // 是否接收测试版更新 (Beta 通道)
     val checkBetaUpdates: Boolean = false
+)
+
+/** 录制中的轨迹实时统计 */
+data class TrajectoryStats(
+    val pointCount: Int = 0,
+    val distanceM: Double = 0.0,
+    val durationSec: Double = 0.0
+)
+
+/** 轨迹列表项（列表只需要展示用得到的字段） */
+data class TrajectoryListItem(
+    val id: Long,
+    val name: String,
+    val pointCount: Int,
+    val distanceM: Double,
+    val durationSec: Double
 )

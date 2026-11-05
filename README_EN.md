@@ -155,3 +155,23 @@ Thanks to the following friends for supporting this project. Donations are entir
 - Distributed under [GNU GPLv3](./LICENSE); see [`NOTICE`](./NOTICE) for the modification record.
 
 **When distributing binaries, provide the corresponding complete source code and retain `LICENSE`, `NOTICE`, and the attribution and disclaimer above.**
+
+---
+
+## ☕ Buy me a coffee
+
+If this project has been helpful to you, you are welcome to buy me a coffee. Your support helps keep it maintained.
+
+<p align="center">
+  <img src="./docs/donate/usdt-trc20.jpg" alt="USDT (TRC20) donation QR code" width="320" />
+</p>
+
+**USDT (TRC-20)**
+
+```
+THLn3ZeUEGqMZWxfjxxFqgpMkrSHFhn9uc
+```
+
+> This address accepts **USDT on TRC-20 only**. Do not send any other token or use another network (e.g. ERC-20 / BEP-20) — transfers sent the wrong way cannot be recovered.
+>
+> Donations are entirely optional and unlock nothing. This project remains fully free and open source; a donation does not constitute any commercial partnership, custom support, or service commitment.

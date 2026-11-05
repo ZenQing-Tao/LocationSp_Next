@@ -33,6 +33,7 @@ import com.vincenthzr.locationspoofer.ui.screen.FooterLinks
 import com.vincenthzr.locationspoofer.ui.screen.ImportExportDataCard
 import com.vincenthzr.locationspoofer.ui.screen.ManageDataCard
 import com.vincenthzr.locationspoofer.ui.screen.ScannerMapCard
+import com.vincenthzr.locationspoofer.ui.screen.TrajectoryRecordCard
 import com.vincenthzr.locationspoofer.ui.screen.SystemHookAppsConfigCard
 import com.vincenthzr.locationspoofer.ui.components.ImportExportSelectionDialog
 import com.vincenthzr.locationspoofer.data.model.ImportExportCounts
@@ -53,7 +54,8 @@ fun FeaturesTab(
     onNavigateToCoordinate: () -> Unit,
     onNavigateToScanner: () -> Unit,
     onNavigateToManageData: () -> Unit,
-    onNavigateToSystemHookApps: () -> Unit
+    onNavigateToSystemHookApps: () -> Unit,
+    onNavigateToTrajectory: () -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
@@ -217,7 +219,16 @@ fun FeaturesTab(
                     }
                 }
 
-                // 5. 导入与导出数据
+                // 5. 录制轨迹（真实 GPS，独立于普通路线）
+                item {
+                    TrajectoryRecordCard(
+                        isDark = isDark,
+                        isRecording = uiState.isTrajectoryRecording,
+                        onClick = onNavigateToTrajectory
+                    )
+                }
+
+                // 6. 导入与导出数据
                 item {
                     ImportExportDataCard(
                         isDark = isDark,

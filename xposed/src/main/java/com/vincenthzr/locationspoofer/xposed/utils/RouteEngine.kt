@@ -4,6 +4,7 @@ import com.vincenthzr.locationspoofer.utils.AltitudeModel
 import com.vincenthzr.locationspoofer.utils.CoordinateUtils.LatLng
 import com.vincenthzr.locationspoofer.utils.GeoMath
 import com.vincenthzr.locationspoofer.utils.MotionRealism
+import com.vincenthzr.locationspoofer.utils.PaceProfile
 import com.vincenthzr.locationspoofer.utils.RoutePath
 import org.json.JSONArray
 import org.json.JSONObject
@@ -74,14 +75,61 @@ object RouteEngine {
         val rawStartTime = config.optLong("start_timestamp", 0L)
         val startTime = if (rawStartTime > 0L) rawStartTime else now
         val elapsedSec = (now - startTime).coerceAtLeast(0L) / 1000.0
-        val realism = realismSession(config, startTime)
+        // 距离是权威量：与 App 端 MotionController 用同一份 PaceProfile 参数、同一个 seed（路线开始时刻），
+        // 两端对同一时刻给出同一位置与同一速度，不再把随机噪声积分进距离。
+        val profile = paceProfile(config, speed, startTime)
         // 暂停后继续时，路线从暂停处的累计距离接着走（start_timestamp 重置为继续的时刻）
         val offset = config.optDouble("route_distance_offset", 0.0).coerceAtLeast(0.0)
-        val traveled = offset + realism.distance(speed, elapsedSec)
+        val traveled = profile.distanceAfter(offset, elapsedSec)
 
         val pos = path.positionAt(traveled, config.optBoolean("stop_at_destination", false))
-        val currentSpeed = if (pos.arrived) 0f else realism.speed(speed, elapsedSec).toFloat()
+        val currentSpeed = if (pos.arrived) 0f else profile.speedAt(profile.elapsedAt(traveled)).toFloat()
         return SpoofedMotion(pos.lat, pos.lng, pos.bearing, currentSpeed)
+    }
+
+    /**
+     * 路线模式下“已行进距离”（米）：与 [calculateCurrentPosition] 同一公式，只算距离不插值坐标，
+     * 供步数换算使用。非路线模式返回 0。
+     */
+    fun traveledDistance(config: JSONObject, now: Long = System.currentTimeMillis()): Double {
+        if (!config.optBoolean("is_route_mode", false)) return 0.0
+        val routeArray = config.optJSONArray("route_points") ?: return 0.0
+        if (routeArray.length() < 2) return 0.0
+        val speed = config.optDouble("speed_m_s", 3.0).coerceAtLeast(0.1)
+        val rawStartTime = config.optLong("start_timestamp", 0L)
+        val startTime = if (rawStartTime > 0L) rawStartTime else now
+        val elapsedSec = (now - startTime).coerceAtLeast(0L) / 1000.0
+        val offset = config.optDouble("route_distance_offset", 0.0).coerceAtLeast(0.0)
+        return paceProfile(config, speed, startTime).distanceAfter(offset, elapsedSec)
+    }
+
+    /**
+     * 路线模式：自上次调用以来新增的步数（>= 0）。
+     *
+     * 步数由 [PaceProfile.stepsAt] 从累计距离换算（步数 × 步幅 = 距离），
+     * 因此换档位、暂停继续、开启力竭后都不会出现“步数涨得比里程快”。
+     * 里程归零（新的路线会话）时只重建基准、不返回负值，保证对外单调递增。
+     */
+    @Synchronized
+    fun routeStepDelta(config: JSONObject, now: Long = System.currentTimeMillis()): Double {
+        if (!config.optBoolean("is_route_mode", false)) return 0.0
+        val routeArray = config.optJSONArray("route_points") ?: return 0.0
+        if (routeArray.length() < 2) return 0.0
+        val speed = config.optDouble("speed_m_s", 3.0).coerceAtLeast(0.1)
+        val rawStartTime = config.optLong("start_timestamp", 0L)
+        val startTime = if (rawStartTime > 0L) rawStartTime else now
+        var distance = traveledDistance(config, now)
+        if (config.optBoolean("stop_at_destination", false)) {
+            // 到达终点后位置停住：里程必须一起停住，否则步数会一直涨而人不动
+            val total = routePath(routeArray).totalDistance
+            if (total > 0.0) distance = distance.coerceAtMost(total)
+        }
+        val profile = paceProfile(config, speed, startTime)
+        val raw = profile.stepsAt(distance)
+        val delta = if (distance < stepDistanceMark) 0.0 else (raw - stepRawMark).coerceAtLeast(0.0)
+        stepDistanceMark = distance
+        stepRawMark = raw
+        return delta
     }
 
     /**
@@ -95,6 +143,34 @@ object RouteEngine {
         if (variation <= 0.0) return base
         val pos = calculateCurrentPosition(config, now)
         return AltitudeModel.altitude(base, variation, drift, pos.lat, pos.lng, now)
+    }
+
+    // 3.2.0 配速曲线：同一份配置只构造一次，参数或开始时刻变化时才重建（避免每个定位请求都新建对象）
+    @Volatile private var cachedProfile: PaceProfile? = null
+    @Volatile private var cachedProfileKey: String? = null
+
+    // 步数换算的上一采样点（里程 + 对应步数），仅本进程内维护
+    @Volatile private var stepDistanceMark = 0.0
+    @Volatile private var stepRawMark = 0.0
+
+    private fun paceProfile(config: JSONObject, speed: Double, startTime: Long): PaceProfile {
+        val variation = config.optDouble("pace_variation_sec", 0.0)
+        val fatigue = config.optInt("fatigue_level", 0)
+        val firstBias = config.optDouble("first_km_bias_sec", 0.0)
+        val fatigueStart = config.optDouble("fatigue_start_km", PaceProfile.DEFAULT_FATIGUE_START_KM)
+        val key = "$speed|$variation|$fatigue|$firstBias|$fatigueStart|$startTime"
+        cachedProfile?.let { if (cachedProfileKey == key) return it }
+        val built = PaceProfile.fromConfig(
+            baseSpeedMps = speed.coerceAtLeast(0.1),
+            paceVariationSec = variation,
+            fatigueLevel = fatigue,
+            firstKmBiasSec = firstBias,
+            fatigueStartKm = fatigueStart,
+            seed = startTime
+        )
+        cachedProfile = built
+        cachedProfileKey = key
+        return built
     }
 
     /** 配置里缺少真实度字段（旧版 App 写的配置）时按"关闭 + 不浮动"处理，行为与旧版一致 */

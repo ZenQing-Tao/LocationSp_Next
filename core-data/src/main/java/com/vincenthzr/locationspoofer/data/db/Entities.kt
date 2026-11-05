@@ -245,6 +245,8 @@ data class SavedRouteEntity(
     val id: Long = 0,
     val name: String,
     val pointsJson: String = "[]",
+    /** 来源标记："" = 普通路线（手动选点/摇杆），"trajectory" = GPS 轨迹录制 */
+    val source: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
 

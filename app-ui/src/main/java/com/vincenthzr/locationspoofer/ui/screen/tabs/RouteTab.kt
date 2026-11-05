@@ -105,6 +105,13 @@ fun RouteTab(
     var showConfigDialog by remember { mutableStateOf(false) }
     var showSaveRouteDialog by remember { mutableStateOf(false) }
     var showSavedRoutesDialog by remember { mutableStateOf(false) }
+
+    // 轨迹保存成功后自动打开路线库弹窗（trajectorySavedCounter 由录制页递增）
+    LaunchedEffect(uiState.trajectorySavedCounter) {
+        if (uiState.trajectorySavedCounter > 0) {
+            showSavedRoutesDialog = true
+        }
+    }
     val isDomestic = viewModel.isDomesticEnvironment()
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<AppPoiItem>>(emptyList()) }

@@ -251,6 +251,19 @@ jobs:
             echo "::error title=Gradle::未匹配到错误行，请下载 gradle-release-log artifact"
           fi
 
+      # 若仓库中存在 docs/release-notes/<tag>.md，则用它覆盖自动生成的 changelog。
+      # 这样手写的发布说明（含签名变更提示、已知限制等）能随构建一起发布。
+      - name: Use custom release notes
+        if: steps.check_version.outputs.changed == 'true'
+        run: |
+          NOTES_FILE="docs/release-notes/${{ steps.check_version.outputs.tag }}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            echo "使用自定义发布说明: $NOTES_FILE"
+            cat "$NOTES_FILE" > changelog.txt
+          else
+            echo "未找到 $NOTES_FILE，使用自动生成的 changelog"
+          fi
+
       - name: Publish GitHub Release
         if: steps.check_version.outputs.changed == 'true'
         uses: softprops/action-gh-release@v2

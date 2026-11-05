@@ -176,6 +176,10 @@ class ConfigManager(private val context: Context, private val rootManager: RootM
         json.put("speed_fluctuation_pct", SpoofingState.speedFluctuationPct.takeIf { it >= 0 } ?: settingsManager.speedFluctuationPct)
         json.put("gait_template", if (settingsManager.useGaitTemplate) settingsManager.gaitTemplate else "")
         json.put("altitude_variation_m", settingsManager.altitudeVariationM)
+        // 3.2.0 配速曲线参数刻意不在这里写：它们是**会话量**，由 ConfigMotionSink.writeRoute
+        // 在开始/换档位时一次性写入，并由 App 端的 MotionController 用同一份 SpeedPreset 计算。
+        // 如果这里每次都刷新为最新偏好，用户在模拟中途改了设置就会出现
+        // “Hook 端按新参数、App 端按旧参数” → 两端曲线不一致 → 位置错乱。
     }
 
     private fun refreshGeocodeIfMoved(lat: Double, lng: Double) {
