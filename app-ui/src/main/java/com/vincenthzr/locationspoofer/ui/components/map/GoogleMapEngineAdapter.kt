@@ -164,6 +164,8 @@ class GMapControllerImpl(
         else map.moveCamera(GCameraUpdateFactory.newLatLng(GLatLng(wgs.first, wgs.second)))
     }
 
+    // Google Maps 的 zoom 本身就是 Web 墨卡托口径，可直接使用。
+    override val cameraZoom: Double? get() = map.cameraPosition?.zoom?.toDouble()
     override val cameraTargetLat: Double?
         get() {
             val target = map.cameraPosition.target

@@ -91,6 +91,21 @@ fun TrajectoryRecordScreen(
     // 朝向版本号：手机朝向变化超过阈值时递增，用来驱动箭头重画
     var headingTick by remember { mutableStateOf(0) }
     var drawnHeadingTick by remember { mutableStateOf(-1) }
+    // 地图缩放变化时递增：箭头的地面长度要跟着缩放级别重算，否则会忽大忽小
+    var zoomTick by remember { mutableStateOf(0) }
+    // 轮询相机缩放级别：四个地图引擎的相机回调口径不一（有的只在手势后触发），
+    // 统一用轮询比较，行为一致且不依赖引擎实现细节
+    LaunchedEffect(mapController) {
+        var lastZoom: Double? = null
+        while (true) {
+            val zoom = mapController?.cameraZoom
+            if (zoom != null && lastZoom != null && kotlin.math.abs(zoom - lastZoom) > 0.01) {
+                zoomTick++
+            }
+            if (zoom != null) lastZoom = zoom
+            delay(400)
+        }
+    }
 
     // 传感器回调在系统线程上跑，这里每 150ms 取一次当前朝向，
     // 只有变化超过阈值才触发重画，避免罗盘抖动把地图刷成幻灯片
@@ -110,7 +125,7 @@ fun TrajectoryRecordScreen(
     }
 
     // 每秒把服务里最新的采样画到地图上；朝向变化时也要重画，箭头才会跟着手机转
-    LaunchedEffect(uiState.trajectoryStats.pointCount, headingTick) {
+    LaunchedEffect(uiState.trajectoryStats.pointCount, headingTick, zoomTick) {
         val controller = mapController ?: return@LaunchedEffect
         val samples = TrajectoryRecordService.rawPoints
         if (samples.isEmpty()) {
@@ -135,15 +150,27 @@ fun TrajectoryRecordScreen(
         val last = samples.last()
         controller.addMarker(last.lat, last.lng, "", MarkerType.RED)
         liveMarker = controller.addMarker(last.lat, last.lng, "", MarkerType.ORANGE)
-        // 绿色 V 形箭头：指向**手机朝向**（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
+        // V 形箭头：指向**手机朝向**（地图标记是位图、无法旋转，故用两条折线拼成 V 字）。
+        // 长度按当前缩放级别反算，让它在屏幕上保持固定像素大小：
+        // 地图拉近时地面长度变短、拉远时变长，观感大小不变。
         val heading = headingProvider.heading
             ?: TrajectoryGeometry.headingAt(
                 points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
                 index = samples.size - 1
             )
-        val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
-        controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
-        controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
+        val arrowLengthM = TrajectoryGeometry.arrowLengthForPixels(
+            zoom = controller.cameraZoom,
+            lat = last.lat,
+            pixels = ARROW_PIXELS
+        )
+        val arrowPair = TrajectoryGeometry.arrowPoints(
+            centerLat = last.lat,
+            centerLng = last.lng,
+            headingDeg = heading,
+            lengthM = arrowLengthM
+        )
+        controller.addPolyline(arrowPair.first, ARROW_COLOR, ARROW_STROKE_WIDTH)
+        controller.addPolyline(arrowPair.second, ARROW_COLOR, ARROW_STROKE_WIDTH)
         if (pointChanged) {
             // 视野跟随已录范围：只在新增点时重设，避免转头时地图跟着抖
             controller.fitBounds(pts, 60)
@@ -517,6 +544,19 @@ private const val ACCENT_ORANGE = 0xFFFF8A00.toInt()
 private const val ARROW_COLOR = 0xFF2F7BFF.toInt()
 /** 朝向变化超过该角度（度）才重画地图上的箭头，抑制罗盘抖动 */
 private const val ARROW_REDRAW_DEG = 8.0
+
+/**
+ * 箭头在屏幕上的目标长度（像素）。
+ *
+ * 之前箭头用固定的 2 米地面长度绘制，于是地图一缩放它就忽大忽小：
+ * 刚开录时 `fitBounds` 把视野拉得很近，2 米只有几个像素（几乎看不见），
+ * 走远后视野拉大，2 米又变得巨大。现在按缩放级别反算地面长度，
+ * 屏幕上观感大小恒定。
+ */
+private const val ARROW_PIXELS = 34.0
+
+/** 箭头线条宽度（像素）。 */
+private const val ARROW_STROKE_WIDTH = 5f
 @Composable
 private fun PrimaryButton(
     text: String,

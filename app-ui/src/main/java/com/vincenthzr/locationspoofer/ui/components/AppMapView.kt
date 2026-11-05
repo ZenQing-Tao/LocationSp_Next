@@ -44,6 +44,17 @@ interface AppMapController {
     }
 
     fun moveCamera(lat: Double, lng: Double, zoom: Float? = null)
+
+    /**
+     * 当前地图的缩放级别（Web 墨卡托口径，数值越大越放大）。
+     *
+     * 用途：把「要在屏幕上占多少像素」换算成「地面上要画多少米」，
+     * 从而让叠加物（尤其是录制页的朝向箭头）大小恒定，不随地图缩放忽大忽小。
+     *
+     * 引擎暂时拿不到时返回 null，调用方需有兜底分支。
+     */
+    val cameraZoom: Double?
+
     val cameraTargetLat: Double?
     val cameraTargetLng: Double?
     fun setOnCameraChangeListener(onFinish: (lat: Double, lng: Double) -> Unit)

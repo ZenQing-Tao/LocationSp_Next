@@ -143,6 +143,9 @@ class AMapControllerImpl(
         else map.moveCamera(CameraUpdateFactory.newLatLng(AMapLatLng(lat, lng)))
     }
 
+    // 高德的 zoom 口径与 Web 墨卡托不完全一致（3~19），但两者都是「每放大一级距离减半」，
+    // 用它做像素→米换算已经足够接近视觉预期。
+    override val cameraZoom: Double? get() = map.cameraPosition?.zoom?.toDouble()
     override val cameraTargetLat: Double? get() = map.cameraPosition?.target?.latitude
     override val cameraTargetLng: Double? get() = map.cameraPosition?.target?.longitude
 
