@@ -78,7 +78,6 @@ class TrajectoryRecordService : Service() {
         @Volatile
         var awaitingOrigin: Boolean = false
             private set
-            private set
 
         /** 一条原始 GPS 采样（含精度，精度为 NaN 表示未知） */
         data class RawSample(
@@ -87,7 +86,7 @@ class TrajectoryRecordService : Service() {
             val tOffsetSec: Double,
             val accuracyM: Float,
             /** 行进方向（度，正北 0，顺时针）；无 bearing 时为 NaN */
-            val bearingDeg: Double = Double.NaN
+            val bearingDeg: Double = Double.NaN,
             /** 是否为开录时定位的原点 */
             val isOrigin: Boolean = false
         )
@@ -221,6 +220,19 @@ class TrajectoryRecordService : Service() {
                     RawSample(gcj.lat, gcj.lng, 0.0, accuracy,
                         if (location.hasBearing()) location.bearing.toDouble() else Double.NaN,
                         isOrigin = true)
+                )
+                return
+            }
+            // 超时回退：等不到足够精确的原点时直接开录，
+            // 把当前点当作第一个点（isOrigin=false），由 ⑤ 的首点跳变保护接手。
+            val waitedSec = (now - startTimestamp) / 1000.0
+            if (waitedSec >= ORIGIN_TIMEOUT_SEC) {
+                awaitingOrigin = false
+                startTimestamp = now
+                rawPoints.clear()
+                rawPoints.add(
+                    RawSample(gcj.lat, gcj.lng, 0.0, accuracy,
+                        if (location.hasBearing()) location.bearing.toDouble() else Double.NaN)
                 )
                 return
             }

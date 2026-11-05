@@ -119,7 +119,6 @@ fun TrajectoryRecordScreen(
             val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
             controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
             controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
-            controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
             // 视野跟随已录范围
             controller.fitBounds(pts, 60)
             drawnPointCount = samples.size
