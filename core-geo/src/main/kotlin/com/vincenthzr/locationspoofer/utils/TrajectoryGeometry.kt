@@ -124,5 +124,5 @@ object TrajectoryGeometry {
     const val DEFAULT_ARROW_LENGTH_M = 2.0
 
     /** V 形箭头张角（度） */
-    const val DEFAULT_ARROW_SPREAD_DEG = 20.0
+    const val DEFAULT_ARROW_SPREAD_DEG = 30.0
 }
