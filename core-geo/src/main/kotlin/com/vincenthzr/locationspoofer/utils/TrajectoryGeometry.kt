@@ -121,8 +121,8 @@ object TrajectoryGeometry {
     const val DEFAULT_CLOSE_THRESHOLD_M = 15.0
 
     /** 箭头长度（米） */
-    const val DEFAULT_ARROW_LENGTH_M = 3.0
+    const val DEFAULT_ARROW_LENGTH_M = 2.0
 
     /** V 形箭头张角（度） */
-    const val DEFAULT_ARROW_SPREAD_DEG = 40.0
+    const val DEFAULT_ARROW_SPREAD_DEG = 20.0
 }

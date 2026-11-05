@@ -513,8 +513,8 @@ fun TrajectoryRecordScreen(
 
 private const val ACCENT_ORANGE = 0xFFFF8A00.toInt()
 
-/** 朝向箭头颜色（绿色，与橙色轨迹区分） */
-private const val ARROW_COLOR = 0xFF00B578.toInt()
+/** 朝向箭头颜色（蓝色，与橙色轨迹区分） */
+private const val ARROW_COLOR = 0xFF2F7BFF.toInt()
 /** 朝向变化超过该角度（度）才重画地图上的箭头，抑制罗盘抖动 */
 private const val ARROW_REDRAW_DEG = 8.0
 @Composable

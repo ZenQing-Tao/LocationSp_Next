@@ -41,9 +41,17 @@ object HeadingMath {
         val north = rotationMatrix[4].toDouble()
         // 水平投影太小说明手机接近竖直举着（屏幕朝你看），此时“顶部方向”无意义
         if (hypot(east, north) < MIN_HORIZONTAL_COMPONENT) return null
-        val heading = (Math.toDegrees(atan2(east, north)) + 360.0) % 360.0
+        val heading = (Math.toDegrees(atan2(east, north)) + FORWARD_OFFSET_DEG + 360.0) % 360.0
         return (heading + magneticDeclination + 360.0) % 360.0
     }
+
+    /**
+     * “屏幕顶端朝向”与用户体感的“前方”相差 180°，在此统一扣除。
+     *
+     * 实测（v3.2.0 真机）：左右转向响应正确，但箭头整体指向后方，
+     * 说明传感器给的是屏幕顶端的指反方向，上层不必再各自加补偿。
+     */
+    const val FORWARD_OFFSET_DEG = 180.0
 
     /** 水平投影长度低于该值时认为手机接近竖直，朝向不可信 */
     private const val MIN_HORIZONTAL_COMPONENT = 0.20
