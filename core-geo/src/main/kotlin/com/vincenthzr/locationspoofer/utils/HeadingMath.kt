@@ -3,6 +3,7 @@ package com.vincenthzr.locationspoofer.utils
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.min
 import kotlin.math.sin
 
 /**
