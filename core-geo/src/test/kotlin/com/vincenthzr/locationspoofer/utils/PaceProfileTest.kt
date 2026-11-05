@@ -71,24 +71,26 @@ class PaceProfileTest {
     }
 
     @Test
-    fun `weak fatigue decays each kilometer within 3 to 8 seconds`() {
+    fun `weak fatigue decays each kilometer by a fixed amount`() {
+        // 3.2.1：疲劳不再带随机区间，弱 = 每公里固定 +4 秒
         val p = profile(fatigue = Fatigue.WEAK, fatigueStartKm = 2.0)
         val startSegment = kotlin.math.ceil(PaceProfile.DEFAULT_FATIGUE_START_KM).toInt()
         for (k in startSegment..9) {
             val decay = p.paceSecPerKm(k) - p.paceSecPerKm(k - 1)
-            assertTrue("k=$k decay=$decay", decay in 3.0 - 1e-6..8.0 + 1e-6)
+            assertTrue("k=$k decay=$decay", decay in 4.0 - 1e-6..4.0 + 1e-6)
         }
         // 累计衰减不超过上限
         assertTrue(p.paceSecPerKm(9) - basePace <= PaceProfile.MAX_FATIGUE_ACC_SEC + 1e-6)
     }
 
     @Test
-    fun `strong fatigue decays each kilometer within 5 to 15 seconds`() {
+    fun `strong fatigue decays each kilometer by a fixed amount`() {
+        // 3.2.1：强 = 每公里固定 +10 秒
         val p = profile(fatigue = Fatigue.STRONG, fatigueStartKm = 2.0)
         val startSegment = kotlin.math.ceil(PaceProfile.DEFAULT_FATIGUE_START_KM).toInt()
         for (k in startSegment..9) {
             val decay = p.paceSecPerKm(k) - p.paceSecPerKm(k - 1)
-            assertTrue("k=$k decay=$decay", decay in 5.0 - 1e-6..15.0 + 1e-6)
+            assertTrue("k=$k decay=$decay", decay in 10.0 - 1e-6..10.0 + 1e-6)
         }
     }
 
@@ -248,5 +250,105 @@ class PaceProfileTest {
         // ceil(2.5) = 3 → 前三段（0..2）不衰减，第 4 公里（idx=3）开始
         assertEquals(basePace, p.paceSecPerKm(2), 1e-9)
         assertTrue(p.paceSecPerKm(3) > basePace)
+    }
+
+    // ==============================================================
+    // 3.2.1：把随机性从疲劳里剥离
+    //
+    // 实机问题：设「强」以为每公里 +8 秒，实测等效只有约 5 秒，
+    // 且第 2、3 公里偏差完全相同——低频浮动把疲劳趋势抵消了。
+    // 下面这些用例把新语义钉死。
+    // ==============================================================
+
+    @Test
+    fun `fatigue slope is deterministic and equals the configured seconds per kilometer`() {
+        for (fatigue in listOf(Fatigue.WEAK, Fatigue.STRONG)) {
+            // 关闭浮动，才能把每公里的差值精确归因到疲劳项
+            val p = profile(variation = 0.0, fatigue = fatigue, fatigueStartKm = 2.0)
+            val start = kotlin.math.ceil(2.0).toInt()
+            for (k in start..9) {
+                val decay = p.paceSecPerKm(k) - p.paceSecPerKm(k - 1)
+                assertEquals("$fatigue k=$k", fatigue.secPerKm, decay, 1e-9)
+            }
+            // 起点之前一段都不衰减
+            for (k in 0 until start) assertEquals(basePace, p.paceSecPerKm(k), 1e-9)
+        }
+    }
+
+    @Test
+    fun `fatigue survives a large wobble setting`() {
+        // 关键回归：浮动调到 ±15 时，疲劳趋势不能被抵消
+        val p = profile(variation = 15.0, fatigue = Fatigue.STRONG, fatigueStartKm = 1.0)
+        val start = kotlin.math.ceil(1.0).toInt()
+        for (k in start..8) {
+            val trend = p.paceSecPerKm(k) - p.paceSecPerKm(k - 1)
+            // 每公里至少要比上一公里慢（趋势项 10 秒，浮动幅度被压到 ±4 秒以内）
+            assertTrue("k=$k trend=$trend", trend > 0.0)
+        }
+        // 6 公里累计衰减 ≈ 10 × 段数，允许浮动 ±4 秒的偏差
+        val sixKmTrend = p.paceSecPerKm(6) - p.paceSecPerKm(0)
+        assertTrue("sixKmTrend=$sixKmTrend", sixKmTrend > 0.0)
+    }
+
+    @Test
+    fun `wobble amplitude is capped when fatigue is enabled`() {
+        val capped = profile(variation = 15.0, fatigue = Fatigue.STRONG, fatigueStartKm = 2.0)
+        val cap = Fatigue.STRONG.secPerKm * PaceProfile.WOBBLE_MAX_FATIGUE_RATIO
+        for (k in 0..1) { // 起点之前只有浮动项
+            val dev = capped.paceSecPerKm(k) - basePace
+            assertTrue("k=$k dev=$dev", kotlin.math.abs(dev) <= cap + 1e-9)
+        }
+    }
+
+    @Test
+    fun `wobble is two-sided and bounded by the setting`() {
+        val p = profile(variation = 10.0)
+        var sawPositive = false
+        var sawNegative = false
+        for (k in 0..40) {
+            val dev = p.paceSecPerKm(k) - basePace
+            assertTrue("k=$k dev=$dev", kotlin.math.abs(dev) <= 10.0 + 1e-9)
+            if (dev > 0.5) sawPositive = true
+            if (dev < -0.5) sawNegative = true
+        }
+        assertTrue("浮动必须双侧", sawPositive && sawNegative)
+    }
+
+    @Test
+    fun `cadence and stride both shrink with fatigue`() {
+        val p = profile(fatigue = Fatigue.STRONG, fatigueStartKm = 1.0)
+        assertTrue(p.cadenceSpm(6) < p.cadenceSpm(0))
+        assertTrue(p.strideM(6) < p.strideM(0))
+        // 分摊后步频降幅应明显小于步幅降幅（0.4 / 0.6 的分配）
+        val cadenceDrop = (p.cadenceSpm(0) - p.cadenceSpm(6)) / p.cadenceSpm(0)
+        val strideDrop = (p.strideM(0) - p.strideM(6)) / p.strideM(0)
+        assertTrue("cadenceDrop=$cadenceDrop strideDrop=$strideDrop", cadenceDrop in 1e-6..strideDrop)
+    }
+
+    @Test
+    fun `steps still equal distance over stride after the split`() {
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 1.0)
+        var dist = 0.0
+        var steps = 0.0
+        for (k in 0..7) {
+            steps += 1000.0 / p.strideM(k)
+            dist += 1000.0
+            // 累计步数 = 各段“距离 / 该段步幅”之和（跨段步幅不同，必须分段累加）
+            assertEquals("k=$k", steps, p.stepsAt(dist), 1e-6)
+            // 单段内“步数 × 步幅 = 距离”仍然成立（第 k 段单独算）
+            assertEquals("k=$k", 1000.0, (1000.0 / p.strideM(k)) * p.strideM(k), 1e-6)
+        }
+    }
+
+    @Test
+    fun `speed is the single source of truth for the injected velocity`() {
+        val p = profile(variation = 10.0, fatigue = Fatigue.STRONG, firstBias = -3.0, fatigueStartKm = 1.0)
+        for (k in 0..5) {
+            assertEquals(1000.0 / p.paceSecPerKm(k), p.speedMps(k), 1e-12)
+            // 段内任意时刻的瞬时速度都等于该段平均速度（段内匀速，不引入第二套口径）
+            val t0 = p.elapsedAt(k * 1000.0)
+            val tMid = t0 + 0.5 * p.paceSecPerKm(k)
+            assertEquals(p.speedMps(k), p.speedAt(tMid), 1e-9)
+        }
     }
 }

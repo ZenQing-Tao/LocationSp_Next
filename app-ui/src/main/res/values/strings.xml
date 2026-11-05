@@ -653,12 +653,12 @@ Error details: %s</string>
     <string name="native_location_blocked_hint">Spoofing is active, so native location may be intercepted and return the simulated point. Stop spoofing first to read your real position.</string>
     <string name="native_location_timeout">Location timed out: weak GPS signal. Try again in the open, or enter coordinates manually.</string>
     <string name="pace_variation_title">Per-kilometer pace variation</string>
-    <string name="pace_variation_desc">Route mode only. Each kilometer changes the pace by a fixed amount.</string>
+    <string name="pace_variation_desc">Route mode only. Each kilometer's pace varies around the target by a fixed amplitude (wave-shaped, alternating).</string>
     <string name="fatigue_title">Fatigue</string>
-    <string name="fatigue_desc">Route mode only. Pace decays naturally starting from the distance set below.</string>
+    <string name="fatigue_desc">Route mode only. Pace decays naturally starting from the distance set below. Decay is a fixed amount per kilometer (Weak +4 s / Strong +10 s); the pace-variation amplitude is automatically reduced so the slowdown stays visible.</string>
     <string name="fatigue_off">Off</string>
-    <string name="fatigue_weak">Weak</string>
-    <string name="fatigue_strong">Strong</string>
+    <string name="fatigue_weak">Weak (+4 s/km)</string>
+    <string name="fatigue_strong">Strong (+10 s/km)</string>
     <string name="first_km_title">First kilometer boost</string>
     <string name="first_km_desc">Route mode only. Start slightly faster, then settle into the target pace.</string>
     <string name="fatigue_start_title">Slow down after</string>
