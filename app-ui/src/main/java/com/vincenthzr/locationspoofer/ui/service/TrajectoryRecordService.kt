@@ -54,6 +54,12 @@ class TrajectoryRecordService : Service() {
         private const val FIRST_POINT_JUMP_M = 30.0
         /** 首点跳变的判定时间窗（秒） */
         private const val FIRST_POINT_JUMP_WINDOW_SEC = 5.0
+        /** 原点定位所需的最大精度（米）：达到这个精度才算不窗 */
+        private const val ORIGIN_MAX_ACCURACY_M = 15.0f
+        /** 原点定位时，两个连续点的允许差距（米）：小于这个值说明已稳定 */
+        private const val ORIGIN_STABLE_DISTANCE_M = 20.0
+        /** 原点定位最长等待时间（秒） */
+        private const val ORIGIN_TIMEOUT_SEC = 20.0
 
         @Volatile
         var isRecording: Boolean = false
@@ -68,6 +74,12 @@ class TrajectoryRecordService : Service() {
         var startTimestamp: Long = 0L
             private set
 
+        /** 是否已定位到精确原点（开录后等待中，还未开始记录路径） */
+        @Volatile
+        var awaitingOrigin: Boolean = false
+            private set
+            private set
+
         /** 一条原始 GPS 采样（含精度，精度为 NaN 表示未知） */
         data class RawSample(
             val lat: Double,
@@ -76,6 +88,8 @@ class TrajectoryRecordService : Service() {
             val accuracyM: Float,
             /** 行进方向（度，正北 0，顺时针）；无 bearing 时为 NaN */
             val bearingDeg: Double = Double.NaN
+            /** 是否为开录时定位的原点 */
+            val isOrigin: Boolean = false
         )
 
         fun resetSamples() {
@@ -133,6 +147,8 @@ class TrajectoryRecordService : Service() {
         resetSamples()
         startTimestamp = System.currentTimeMillis()
         isRecording = true
+        // 先等一个精确原点，之后才开始记录路径
+        awaitingOrigin = true
 
         // 只用一个 provider 采样：**绝不能同时注册 GPS 和网络定位**。
         // 网络定位是基站推算的粗略位置（可偏差几百米），与精确的 GPS 交替上报时，
@@ -173,8 +189,8 @@ class TrajectoryRecordService : Service() {
         if (!isRecording) return
 
         // ① 丢弃“陈旧”定位：
-        // 注册监听后，系统会立刻把**上次已知位置**（last known location）推一次，
-        // 那可能是几小时前、甚至几公里外的位置。不拦掉就会出现“刚开录就飞出一大段直线”。
+        // 注册监听后，系统会立即把**上次已知位置**（last known location）推一次，
+        // 那可能是几小时前、几公里外的位置。不拦掉就会出现“刚开录就飞出一大段直线”。
         val now = System.currentTimeMillis()
         if (now - location.time > MAX_LOCATION_AGE_MS) return
 
@@ -186,14 +202,43 @@ class TrajectoryRecordService : Service() {
         // 否则 WGS-84 与 GCJ-02 混算会凭空多出 500 米偏差。
         val gcj = CoordinateUtils.wgs84ToGcj02(location.latitude, location.longitude)
 
-        // 时间戳用系统当前时间（与 startTimestamp 同源），不依赖 provider 的时间
+        // ③ “先定位原点”阶段：
+        // 开录后不立即记录，而是等一个**精确、已稳定**的定位作为原点。
+        // GPS 冷启动的第一帧常带几十米误差（但精度值只有 30~40m，能过上面的阈值），
+        // 直接当当成第一个点录进来，就会在地图上拉出一条长直线。
+        // 判定原点已稳定的条件：精度足够好 ≤ 15m，且与上一个点相差 ≤ 20m（说明已经落到实处，不在漂）。
+        if (awaitingOrigin) {
+            val good = !accuracy.isNaN() && accuracy <= ORIGIN_MAX_ACCURACY_M
+            val stable = rawPoints.isEmpty() || GeoMath.distance(
+                CoordinateUtils.LatLng(rawPoints.last().lat, rawPoints.last().lng),
+                CoordinateUtils.LatLng(gcj.lat, gcj.lng)
+            ) <= ORIGIN_STABLE_DISTANCE_M
+            if (good && stable) {
+                awaitingOrigin = false
+                startTimestamp = now
+                rawPoints.clear()
+                rawPoints.add(
+                    RawSample(gcj.lat, gcj.lng, 0.0, accuracy,
+                        if (location.hasBearing()) location.bearing.toDouble() else Double.NaN,
+                        isOrigin = true)
+                )
+                return
+            }
+            // 还没稳定：只记住最后一个点用于比对，不计入路径
+            rawPoints.clear()
+            rawPoints.add(
+                RawSample(gcj.lat, gcj.lng, 0.0, accuracy,
+                    if (location.hasBearing()) location.bearing.toDouble() else Double.NaN)
+            )
+            return
+        }
+
+        // ④ 时间戳用系统当前时间（与 startTimestamp 同源），不依赖 provider 的时间
         val t = (now - startTimestamp) / 1000.0
 
-        // ③ 首点跳变保护：
-        // GPS 冷启动后的第一个点往往带几十米误差（精度值可能只有 30~40m，能过上面的阀值）。
-        // 若第二个点与它差得很远、而时间只过了几秒，说明首点是坏的——丢掉它、从当前点重新起算，
-        // 否则这段“假位移”会一路留在轨迹里（实测能凭空多出 60 米）。
-        if (rawPoints.size == 1) {
+        // ⑤ 首点跳变保护（备用层）：
+        // 若原点定位超时回退到“直接开录”模式，这里再保留一道防线。
+        if (rawPoints.size == 1 && !rawPoints[0].isOrigin) {
             val first = rawPoints[0]
             val gap = GeoMath.distance(
                 CoordinateUtils.LatLng(first.lat, first.lng),

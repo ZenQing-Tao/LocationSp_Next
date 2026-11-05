@@ -86,6 +86,8 @@ data class AppState(
 
     /** 是否正在录制轨迹（真实 GPS） */
     val isTrajectoryRecording: Boolean = false,
+    /** 正在等待 GPS 定位到精确原点（尚未开始记录路径） */
+    val awaitingTrajectoryOrigin: Boolean = false,
     /** 录制中的实时统计 */
     val trajectoryStats: TrajectoryStats = TrajectoryStats(),
     /** 已保存的轨迹列表 */

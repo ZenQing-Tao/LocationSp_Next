@@ -37,6 +37,7 @@ import com.vincenthzr.locationspoofer.utils.TrajectoryGeometry
 import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
 import com.vincenthzr.locationspoofer.viewmodel.isDomesticEnvironment
 import com.vincenthzr.locationspoofer.ui.service.TrajectoryRecordService
+import com.vincenthzr.locationspoofer.ui.service.HeadingProvider
 import com.vincenthzr.locationspoofer.ui.R
 import com.vincenthzr.locationspoofer.ui.theme.AccentBlue
 import com.vincenthzr.locationspoofer.ui.theme.AccentGreen
@@ -73,6 +74,12 @@ fun TrajectoryRecordScreen(
     // 进入页面时启动“每秒刷新录制统计”的轮询（ViewModel 内部按录制状态开关）
     LaunchedEffect(Unit) { viewModel.pollRecordingStats() }
 
+    // 方向传感器：箭头跟随手机朝向（而不是轨迹几何方向）
+    val headingProvider = remember { HeadingProvider(context) }
+    DisposableEffect(Unit) {
+        headingProvider.start()
+        onDispose { headingProvider.stop() }
+    }
     val recording = uiState.isTrajectoryRecording
     // 地图：录制时实时显示已走过的轨迹与当前位置
     var mapController by remember { mutableStateOf<AppMapController?>(null) }
@@ -103,14 +110,15 @@ fun TrajectoryRecordScreen(
             val last = samples.last()
             controller.addMarker(last.lat, last.lng, "", MarkerType.RED)
             liveMarker = controller.addMarker(last.lat, last.lng, "", MarkerType.ORANGE)
-            // 绿色 V 形箭头：指向行进方向（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
-            val heading = TrajectoryGeometry.headingAt(
-                points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
-                index = samples.size - 1,
-                gpsBearingDeg = samples.last().bearingDeg.takeIf { !it.isNaN() }
-            )
+            // 绿色 V 形箭头：指向**手机朝向**（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
+            val heading = headingProvider.heading
+                ?: TrajectoryGeometry.headingAt(
+                    points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
+                    index = samples.size - 1
+                )
             val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
             controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
+            controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
             controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
             // 视野跟随已录范围
             controller.fitBounds(pts, 60)
@@ -196,6 +204,14 @@ fun TrajectoryRecordScreen(
                         val samples = TrajectoryRecordService.rawPoints
                         if (samples.isNotEmpty()) {
                             controller.fitBounds(samples.map { it.lat to it.lng }, 60)
+                        } else {
+                            // 还没定位到原点：先回到当前位置（等 GPS 首帧到达），
+                            // 否则地图会停在默认的“世界视野”，用户看不到自己在哪。
+                            val lat = uiState.latitudeInput.toDoubleOrNull()
+                            val lng = uiState.longitudeInput.toDoubleOrNull()
+                            if (lat != null && lng != null) {
+                                controller.moveCamera(lat, lng, 17f)
+                            }
                         }
                     }
                 )
@@ -225,10 +241,11 @@ fun TrajectoryRecordScreen(
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (recording) {
-                                stringResource(R.string.trajectory_recording_status)
-                            } else {
-                                stringResource(R.string.trajectory_idle_status)
+                            text = when {
+                                uiState.awaitingTrajectoryOrigin ->
+                                    stringResource(R.string.trajectory_locating_origin)
+                                recording -> stringResource(R.string.trajectory_recording_status)
+                                else -> stringResource(R.string.trajectory_idle_status)
                             },
                             color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 15.sp,

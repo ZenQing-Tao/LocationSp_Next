@@ -507,4 +507,5 @@
     <string name="trajectory_not_saved">عدم الحفظ</string>
     <string name="trajectory_close_loop_title">إغلاق الحلقة تلقائياً</string>
     <string name="trajectory_close_loop_desc">إذا كانت نقطة النهاية ضمن 15 متراً من نقطة البداية، يتم ربطهما لتصبح المسار حلقة مغلقة بدلاً من العودة بالطريق نفسه.</string>
+    <string name="trajectory_locating_origin">جاري تحديد نقطة بداءة دقيقة...</string>
 </resources>

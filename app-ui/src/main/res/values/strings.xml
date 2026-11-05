@@ -695,4 +695,5 @@ Error details: %s</string>
     <string name="trajectory_not_saved">Not saved</string>
     <string name="trajectory_close_loop_title">Close the loop automatically</string>
     <string name="trajectory_close_loop_desc">When the end point is within 15 m of the start point, connect them so the route loops instead of doubling back.</string>
+    <string name="trajectory_locating_origin">Locating a precise start point...</string>
 </resources>

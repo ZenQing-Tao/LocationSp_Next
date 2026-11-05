@@ -210,13 +210,15 @@ internal fun MainViewModel.pollRecordingStats() {
                     )
                 }
                 val dur = if (pts.isEmpty()) 0.0 else pts.last().tOffsetSec
+                val awaiting = TrajectoryRecordService.awaitingOrigin
                 _uiState.update {
                     it.copy(
                         trajectoryStats = TrajectoryStats(
                             pointCount = pts.size,
                             distanceM = dist,
                             durationSec = dur
-                        )
+                        ),
+                        awaitingTrajectoryOrigin = awaiting
                     )
                 }
             }
