@@ -3,6 +3,7 @@ package com.vincenthzr.locationspoofer.utils
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -15,32 +16,37 @@ import kotlin.math.sin
 object HeadingMath {
 
     /**
-     * 由旋转矩阵与重力向量算出“手机顶部指向的水平方向”。
+     * 由旋转矩阵算出“手机顶部指向的水平方向”。
      *
-     * @param rotationMatrix 3x3 旋转矩阵（SensorManager.getRotationMatrix 给出）
-     * @param gravity 重力向量（加速度计算器）
-     * @param geomagnetic 地磁场向量（磁力计算器）
+     * 旋转矩阵 R（`SensorManager.getRotationMatrix` / `getRotationMatrixFromVector` 给出）
+     * 把设备坐标系旋转到世界坐标系；世界系为 X=东、Y=北、Z=天顶。
+     * 因此设备 +Y 轴（屏幕上方）在世界系里的分量就是 R 的**第二列**：
+     * `R[1]` = 东向分量，`R[4]` = 北向分量。
+     *
+     * **注意**：不能拿 `R × gravity` 去算方向。重力向量的设备系表示几乎恒定在 +Z，
+     * 乘完得到的永远是世界天顶方向，与手机朝向无关——那样算出来的角度是死值，
+     * 箭头就会固定在屏幕上不转（v3.2.0 实测踩过这个坑）。
+     *
+     * @param rotationMatrix 3x3 旋转矩阵（行主序）
      * @param magneticDeclination 地磁偏角（度）
-     * @return 朝向（度）；无法计算时返回 null
+     * @return 朝向（度）；设备接近竖直（水平投影过小）或数值无效时返回 null
      */
     fun headingFromRotation(
         rotationMatrix: FloatArray,
-        gravity: FloatArray,
-        geomagnetic: FloatArray,
         magneticDeclination: Double = 0.0
     ): Double? {
-        // out = R * gravity，R 为 3x3 旋转矩阵（行主序存储）
-        val gx = gravity[0]; val gy = gravity[1]; val gz = gravity[2]
-        val o0 = rotationMatrix[0] * gx + rotationMatrix[1] * gy + rotationMatrix[2] * gz
-        val o3 = rotationMatrix[3] * gx + rotationMatrix[4] * gy + rotationMatrix[5] * gz
-        val o6 = rotationMatrix[6] * gx + rotationMatrix[7] * gy + rotationMatrix[8] * gz
-        // o6 = 水平方向的东向分量，o3 = 北向分量
-        val east = o6.toDouble()
-        val north = o3.toDouble()
-        if (abs(east) < 1e-7 && abs(north) < 1e-7) return null
+        if (rotationMatrix.size < 9) return null
+        // 设备 +Y 轴投影到水平面的东/北分量
+        val east = rotationMatrix[1].toDouble()
+        val north = rotationMatrix[4].toDouble()
+        // 水平投影太小说明手机接近竖直举着（屏幕朝你看），此时“顶部方向”无意义
+        if (hypot(east, north) < MIN_HORIZONTAL_COMPONENT) return null
         val heading = (Math.toDegrees(atan2(east, north)) + 360.0) % 360.0
         return (heading + magneticDeclination + 360.0) % 360.0
     }
+
+    /** 水平投影长度低于该值时认为手机接近竖直，朝向不可信 */
+    private const val MIN_HORIZONTAL_COMPONENT = 0.20
 
     /**
      * 纯位置解算：目标点相对起点的方向（度）。

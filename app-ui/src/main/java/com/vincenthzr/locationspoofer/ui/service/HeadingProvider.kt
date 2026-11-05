@@ -91,14 +91,14 @@ class HeadingProvider(private val context: Context) : SensorEventListener {
     }
 
     private fun recompute() {
-        val h = if (hasRotation && hasGravity && hasGeomagnetic) {
-            // 有旋转矢量时，重力/磁场方向可由它推出来；这里直接用传感器的重力与磁场
-            HeadingMath.headingFromRotation(rotationMatrix, gravity, geomagnetic)
+        val h = if (hasRotation) {
+            // 旋转矢量本身就能给出朝向，不需要再等重力/磁场传感器
+            HeadingMath.headingFromRotation(rotationMatrix)
         } else if (hasGravity && hasGeomagnetic) {
             // 回退：加速度计 + 磁力计组合
             val rot = FloatArray(9)
             if (!SensorManager.getRotationMatrix(rot, null, gravity, geomagnetic)) return
-            HeadingMath.headingFromRotation(rot, gravity, geomagnetic)
+            HeadingMath.headingFromRotation(rot)
         } else {
             null
         }

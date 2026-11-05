@@ -50,10 +50,14 @@ class TrajectoryRecordService : Service() {
         private const val MAX_ACCURACY_M = 50f
         /** 定位最大允许“年龄”：超过这个时间的定位视为陈旧（用来拦 last known location） */
         private const val MAX_LOCATION_AGE_MS = 3_000L
-        /** 首点跳变阈值（米）：第二个点比首点远这么多、且时间很短，就认为首点坏了 */
-        private const val FIRST_POINT_JUMP_M = 30.0
-        /** 首点跳变的判定时间窗（秒） */
-        private const val FIRST_POINT_JUMP_WINDOW_SEC = 5.0
+        /** 起点锚定窗口（秒）：开录后这段时间内允许把原点整体挪到稳定位置 */
+        private const val START_ANCHOR_WINDOW_SEC = 12.0
+        /** 起点锚定阶段的最小跳变距离（米）：超过就挪原点，不画飞线 */
+        private const val START_ANCHOR_MIN_JUMP_M = 3.0
+        /** 起点锚定阶段按时间折算的合理位移速度（米/秒） */
+        private const val START_ANCHOR_SPEED_MPS = 2.5
+        /** 中段跳点过滤：单段速度超过此值视为定位跳点，直接丢弃（米/秒） */
+        private const val MAX_PLAUSIBLE_SPEED_MPS = 15.0
         /** 原点定位所需的最大精度（米）：达到这个精度才算不窗 */
         private const val ORIGIN_MAX_ACCURACY_M = 15.0f
         /** 原点定位时，两个连续点的允许差距（米）：小于这个值说明已稳定 */
@@ -247,22 +251,44 @@ class TrajectoryRecordService : Service() {
 
         // ④ 时间戳用系统当前时间（与 startTimestamp 同源），不依赖 provider 的时间
         val t = (now - startTimestamp) / 1000.0
+        val bearing = if (location.hasBearing()) location.bearing.toDouble() else Double.NaN
+        val here = CoordinateUtils.LatLng(gcj.lat, gcj.lng)
 
-        // ⑤ 首点跳变保护（备用层）：
-        // 若原点定位超时回退到“直接开录”模式，这里再保留一道防线。
-        if (rawPoints.size == 1 && !rawPoints[0].isOrigin) {
+        if (rawPoints.isNotEmpty()) {
             val first = rawPoints[0]
-            val gap = GeoMath.distance(
-                CoordinateUtils.LatLng(first.lat, first.lng),
-                CoordinateUtils.LatLng(gcj.lat, gcj.lng)
-            )
-            val dt = t - first.tOffsetSec
-            if (gap > FIRST_POINT_JUMP_M && dt < FIRST_POINT_JUMP_WINDOW_SEC) {
-                rawPoints.clear()
+            // ⑤ 起点锚定（GPS 冷启动漂移）：
+            // 原点虽然通过了精度筛选，但冷启动后头几帧仍会缓慢“爬”出几十米。
+            // 只要还在起点窗口内、且新点离原点明显远于正常步行速度，
+            // 就把原点整体挪到新位置、距离归零——宁可丢掉几米，也不要画一条假飞线。
+            if (rawPoints.size == 1 && t - first.tOffsetSec <= START_ANCHOR_WINDOW_SEC) {
+                val gap = GeoMath.distance(
+                    CoordinateUtils.LatLng(first.lat, first.lng),
+                    here
+                )
+                val elapsed = maxOf(t - first.tOffsetSec, 1.0)
+                val allowed = maxOf(START_ANCHOR_MIN_JUMP_M, START_ANCHOR_SPEED_MPS * elapsed)
+                if (gap > allowed) {
+                    rawPoints.clear()
+                    rawPoints.add(
+                        RawSample(gcj.lat, gcj.lng, 0.0, accuracy, bearing, isOrigin = true)
+                    )
+                    startTimestamp = now
+                    return
+                }
+            }
+
+            // ⑥ 跳点过滤：中段偶尔会有单帧跳到几百米外，按“单段速度”剔除
+            val last = rawPoints.last()
+            val dt = t - last.tOffsetSec
+            if (dt > 0.0) {
+                val gap = GeoMath.distance(
+                    CoordinateUtils.LatLng(last.lat, last.lng),
+                    here
+                )
+                if (gap / dt > MAX_PLAUSIBLE_SPEED_MPS) return
             }
         }
 
-        val bearing = if (location.hasBearing()) location.bearing.toDouble() else Double.NaN
         rawPoints.add(RawSample(gcj.lat, gcj.lng, t, accuracy, bearing))
     }
 

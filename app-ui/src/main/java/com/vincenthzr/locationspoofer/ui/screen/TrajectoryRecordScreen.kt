@@ -33,6 +33,7 @@ import com.vincenthzr.locationspoofer.ui.components.AppMapController
 import com.vincenthzr.locationspoofer.ui.components.AppMapMarker
 import com.vincenthzr.locationspoofer.ui.components.AppMapView
 import com.vincenthzr.locationspoofer.ui.components.MarkerType
+import com.vincenthzr.locationspoofer.utils.HeadingMath
 import com.vincenthzr.locationspoofer.utils.TrajectoryGeometry
 import com.vincenthzr.locationspoofer.utils.TrajectoryPoint
 import com.vincenthzr.locationspoofer.viewmodel.isDomesticEnvironment
@@ -51,6 +52,7 @@ import com.vincenthzr.locationspoofer.viewmodel.saveTrajectory
 import com.vincenthzr.locationspoofer.viewmodel.discardPendingTrajectory
 import com.vincenthzr.locationspoofer.viewmodel.pollRecordingStats
 import com.vincenthzr.locationspoofer.viewmodel.setAutoCloseTrajectoryLoop
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 
 /**
@@ -86,46 +88,68 @@ fun TrajectoryRecordScreen(
     var liveMarker by remember { mutableStateOf<AppMapMarker?>(null) }
     // 已录点数的版本号：变化时重画折线（每秒由轮询递增）
     var drawnPointCount by remember { mutableStateOf(0) }
-    // 已录点数的版本号：变化时重画折线
+    // 朝向版本号：手机朝向变化超过阈值时递增，用来驱动箭头重画
+    var headingTick by remember { mutableStateOf(0) }
+    var drawnHeadingTick by remember { mutableStateOf(-1) }
 
-    // 每秒把服务里最新的采样画到地图上
-    LaunchedEffect(uiState.trajectoryStats.pointCount) {
+    // 传感器回调在系统线程上跑，这里每 150ms 取一次当前朝向，
+    // 只有变化超过阈值才触发重画，避免罗盘抖动把地图刷成幻灯片
+    LaunchedEffect(Unit) {
+        var last: Double? = null
+        while (true) {
+            val h = headingProvider.heading
+            if (h != null) {
+                val prev = last
+                if (prev == null || HeadingMath.angleDiff(prev, h) >= ARROW_REDRAW_DEG) {
+                    last = h
+                    headingTick++
+                }
+            }
+            delay(150)
+        }
+    }
+
+    // 每秒把服务里最新的采样画到地图上；朝向变化时也要重画，箭头才会跟着手机转
+    LaunchedEffect(uiState.trajectoryStats.pointCount, headingTick) {
         val controller = mapController ?: return@LaunchedEffect
         val samples = TrajectoryRecordService.rawPoints
         if (samples.isEmpty()) {
             controller.clear()
             liveMarker = null
             drawnPointCount = 0
+            drawnHeadingTick = headingTick
             return@LaunchedEffect
         }
-        // 点数没变就不用重画（避免每秒闪烁）
-        if (samples.size != drawnPointCount) {
-            controller.clear()
-            val pts = samples.map { it.lat to it.lng }
-            if (pts.size >= 2) {
-                controller.addPolyline(pts, ACCENT_ORANGE, 8f)
-            }
-            val first = samples.first()
-            controller.addMarker(first.lat, first.lng, "", MarkerType.GREEN)
-            val last = samples.last()
-            controller.addMarker(last.lat, last.lng, "", MarkerType.RED)
-            liveMarker = controller.addMarker(last.lat, last.lng, "", MarkerType.ORANGE)
-            // 绿色 V 形箭头：指向**手机朝向**（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
-            val heading = headingProvider.heading
-                ?: TrajectoryGeometry.headingAt(
-                    points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
-                    index = samples.size - 1
-                )
-            val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
-            controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
-            controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
-            // 视野跟随已录范围
+        val pointChanged = samples.size != drawnPointCount
+        val headingChanged = headingTick != drawnHeadingTick
+        // 点数没变、朝向也没变就不用重画（避免每秒闪烁）
+        if (!pointChanged && !headingChanged) return@LaunchedEffect
+
+        controller.clear()
+        val pts = samples.map { it.lat to it.lng }
+        if (pts.size >= 2) {
+            controller.addPolyline(pts, ACCENT_ORANGE, 8f)
+        }
+        val first = samples.first()
+        controller.addMarker(first.lat, first.lng, "", MarkerType.GREEN)
+        val last = samples.last()
+        controller.addMarker(last.lat, last.lng, "", MarkerType.RED)
+        liveMarker = controller.addMarker(last.lat, last.lng, "", MarkerType.ORANGE)
+        // 绿色 V 形箭头：指向**手机朝向**（地图标记是位图、无法旋转，故用两条折线拼成 V 字）
+        val heading = headingProvider.heading
+            ?: TrajectoryGeometry.headingAt(
+                points = samples.map { TrajectoryPoint(it.lat, it.lng, it.tOffsetSec) },
+                index = samples.size - 1
+            )
+        val arrowPair = TrajectoryGeometry.arrowPoints(last.lat, last.lng, heading)
+        controller.addPolyline(arrowPair.first, ARROW_COLOR, 5f)
+        controller.addPolyline(arrowPair.second, ARROW_COLOR, 5f)
+        if (pointChanged) {
+            // 视野跟随已录范围：只在新增点时重设，避免转头时地图跟着抖
             controller.fitBounds(pts, 60)
             drawnPointCount = samples.size
-        } else if (liveMarker != null) {
-            val last = samples.last()
-            liveMarker?.setPosition(last.lat, last.lng)
         }
+        drawnHeadingTick = headingTick
     }
 
     val stats = uiState.trajectoryStats
@@ -491,8 +515,8 @@ private const val ACCENT_ORANGE = 0xFFFF8A00.toInt()
 
 /** 朝向箭头颜色（绿色，与橙色轨迹区分） */
 private const val ARROW_COLOR = 0xFF00B578.toInt()
-/** 朝向箭头颜色（绿色，与橙色轨迹区分） */
-
+/** 朝向变化超过该角度（度）才重画地图上的箭头，抑制罗盘抖动 */
+private const val ARROW_REDRAW_DEG = 8.0
 @Composable
 private fun PrimaryButton(
     text: String,
