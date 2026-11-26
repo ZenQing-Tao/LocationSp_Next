@@ -107,6 +107,50 @@ object TrajectoryGeometry {
         return leftPair to rightPair
     }
 
+    /**
+     * Web 墨卡托下，某缩放级别、某纬度处**一个屏幕像素**对应的地面距离（米）。
+     *
+     * 用途：把「箭头要占多少像素」换算成「箭头要画多少米」，
+     * 从而让箭头在屏幕上大小恒定，不随地图缩放忽大忽小。
+     *
+     * @param zoom 地图缩放级别（各引擎口径略有差异，见各适配器注释）
+     * @param lat 箭头所在纬度（墨卡托纬度方向随纬度收缩）
+     */
+    fun metersPerPixel(zoom: Double, lat: Double): Double {
+        val z = zoom.coerceIn(2.0, 22.0)
+        val latRad = Math.toRadians(lat.coerceIn(-85.0, 85.0))
+        val mpp = 156543.03392804097 * Math.cos(latRad) / Math.pow(2.0, z)
+        return mpp.coerceIn(0.05, 5000.0)
+    }
+
+    /**
+     * 让箭头在屏幕上保持固定像素大小所需的**地面长度（米）**。
+     *
+     * 旧实现固定用 [DEFAULT_ARROW_LENGTH_M]（2 米）画箭头，
+     * 于是：
+     * - 刚开始录制、只有几个点时，`fitBounds` 会把地图拉得很近（高 zoom），
+     *   2 米在屏幕上只有几个像素 → 箭头小得几乎看不见；
+     * - 走了一段后 `fitBounds` 把视野拉远（低 zoom），
+     *   同样 2 米在屏幕上又变得巨大 → 箭头盖住整条轨迹。
+     *
+     * 现在按当前缩放级别反算长度：地图放大时箭头变短（米数变小），
+     * 缩小的时候变长，屏幕上的观感大小保持不变。
+     *
+     * @param zoom 当前地图缩放级别；为 null（引擎未提供）时退回固定长度
+     * @param lat 箭头所在纬度
+     * @param pixels 期望的屏幕像素长度
+     * @param fallbackM 引擎拿不到缩放级别时的兜底长度（米）
+     */
+    fun arrowLengthForPixels(
+        zoom: Double?,
+        lat: Double,
+        pixels: Double,
+        fallbackM: Double = DEFAULT_ARROW_LENGTH_M
+    ): Double {
+        if (zoom == null) return fallbackM
+        return (pixels * metersPerPixel(zoom, lat)).coerceIn(0.5, 500.0)
+    }
+
     private fun destinationFrom(
         lat: Double,
         lng: Double,

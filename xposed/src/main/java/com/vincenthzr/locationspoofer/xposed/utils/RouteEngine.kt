@@ -126,6 +126,14 @@ object RouteEngine {
         }
         val profile = paceProfile(config, speed, startTime)
         val raw = profile.stepsAt(distance)
+        // 本进程首次调用：stepRawMark 还是初始值 0，若直接走下面的 raw - stepRawMark，
+        // 会把"从出发到现在的全部步数"当成一次增量返回（Hook 进程重启后一次性暴涨数千步）。
+        // 这里先把基准对齐到当前里程，返回 0，让后续调用只累加真实增量。
+        if (stepRawMark <= 0.0) {
+            stepDistanceMark = distance
+            stepRawMark = raw
+            return 0.0
+        }
         val delta = if (distance < stepDistanceMark) 0.0 else (raw - stepRawMark).coerceAtLeast(0.0)
         stepDistanceMark = distance
         stepRawMark = raw

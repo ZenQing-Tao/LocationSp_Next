@@ -123,6 +123,9 @@ class MapLibreControllerImpl(
         circles.clear()
     }
 
+    // MapLibre 的 zoom 就是 Web 墨卡托口径，可直接使用。
+    override val cameraZoom: Double? get() = map.cameraPosition.zoom
+
     override fun addPolyline(points: List<Pair<Double, Double>>, colorInt: Int, width: Float) {
         if (points.size < 2) return
         val spec = PolylineSpec(points, colorInt, width)

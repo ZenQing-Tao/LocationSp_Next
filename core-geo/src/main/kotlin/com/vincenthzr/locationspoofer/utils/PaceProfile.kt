@@ -1,5 +1,7 @@
 package com.vincenthzr.locationspoofer.utils
 
+import kotlin.math.sin
+
 /**
  * 按公里配速曲线（3.2.0 批 1）。
  *
@@ -12,27 +14,32 @@ package com.vincenthzr.locationspoofer.utils
  *
  * 数据流：
  * ```
- * pace_k = clamp(basePace + wobble_k + fatigue_k + firstKmBias_k)   // 单位：秒/公里
- * fatigue_k = 0                                        (k < 起始段)
- *           = min(sum(decay_i), 90s)                    (k >= 起始段)
- * speed_k = 1000 / pace_k                                          // 米/秒
- * t_k     = t_{k-1} + pace_{k-1}                                   // 第 k 公里起始时刻
- * distanceAt(t) = k*1000 + speed_k * (t - t_k)                     // 段内匀速
+ * lowWobble_k = A × sin(2π·k/P + φ)             // 低频状态起伏，A ≤ 浮动设定
+ * fatigueAcc_k = min(secPerKm × 已衰减段数, 90)  // 单调、无随机的体力衰减
+ * pace_k      = clamp(basePace + lowWobble_k + fatigueAcc_k + firstKmBias_k)
+ * speed_k     = 1000 / pace_k                                // 米/秒（段内匀速）
+ * t_k         = t_{k-1} + pace_{k-1}                          // 第 k 公里起始时刻
+ * distanceAt(t) = k*1000 + speed_k * (t - t_k)                // 段内匀速
  * elapsedAt(d)  = t_k + (d - k*1000) / speed_k
- * stepsAt(d)    = Σ 每段距离 / stride_k,  stride_k = speed_k / (cadence_k/60)
+ * cadence_k   = cadenceBase × (1 - CADENCE_SHARE × 相对降速)
+ * stride_k    = speed_k / (cadence_k / 60)
+ * stepsAt(d)  = Σ 每段距离 / stride_k                         // 步数 × 步幅 = 距离
  * ```
+ *
+ * 3.2.1 起把随机性从「疲劳」里彻底剥离：
+ * - 疲劳 = 固定斜率、严格单调，用户设「强」就是每公里 +10 秒，可预期；
+ * - 浮动 = 低频正弦，天然双侧、有界，不会长时间偏向一侧吞掉疲劳趋势。
+ *
  * 全程无随机游走，只有"每公里取一个确定值"，因此两端（App / Hook）用同一
  * seed 计算结果完全一致，不需要跨进程通信。
  */
-enum class Fatigue(val level: Int, val minSecPerKm: Double, val maxSecPerKm: Double) {
+enum class Fatigue(val level: Int, val secPerKm: Double) {
     /** 不衰减。 */
-    OFF(0, 0.0, 0.0),
-
-    /** 弱：每公里掉 3~8 秒。 */
-    WEAK(1, 3.0, 8.0),
-
-    /** 强：每公里掉 5~15 秒。 */
-    STRONG(2, 5.0, 15.0);
+    OFF(0, 0.0),
+    /** 弱：每公里固定 +4 秒。 */
+    WEAK(1, 4.0),
+    /** 强：每公里固定 +10 秒。 */
+    STRONG(2, 10.0);
 
     companion object {
         /** fatigue_level：0=OFF，1=WEAK，2=STRONG，其他值落到 OFF。 */
@@ -89,13 +96,28 @@ class PaceProfile(
     /** 第 [k] 公里的速度（米/秒）。 */
     fun speedMps(k: Int): Double = 1000.0 / paceSecPerKm(k)
 
-    /** 第 [k] 公里的步频（步/分钟）。 */
+    /** 基准步频：按基准速度算一次，全段共用。 */
+    private val baseCadenceSpm: Double =
+        (167.0 + (baseSpeedMps - 2.78) * 8.0 + cadenceOffsetSpm).coerceIn(120.0, 210.0)
+
+    /**
+     * 第 [k] 公里的步频（步/分钟）。
+     *
+     * 3.2.1 起降速不再全压在步幅上：按 [CADENCE_SHARE] 把相对降速分摊到步频。
+     * 否则目标 App 里步频会是一条二十几分钟纹丝不动的直线（实测恒为 163 步/分），
+     * 而真人疲劳时步频与步幅是一起缩的。
+     */
     fun cadenceSpm(k: Int): Double {
         val v = speedMps(k)
-        return (167.0 + (v - 2.78) * 8.0 + cadenceOffsetSpm).coerceIn(120.0, 210.0)
+        val drop = ((baseSpeedMps - v) / baseSpeedMps).coerceIn(-0.2, 0.6)
+        return (baseCadenceSpm * (1.0 - CADENCE_SHARE * drop)).coerceIn(120.0, 210.0)
     }
 
-    /** 第 [k] 公里的步幅（米/步）。 */
+    /**
+     * 第 [k] 公里的步幅（米/步）。
+     *
+     * 永远由速度与步频反解，因此「步数 × 步幅 = 距离」这条强约束不会被单方面改坏。
+     */
     fun strideM(k: Int): Double = speedMps(k) / (cadenceSpm(k) / 60.0)
 
     /** 从出发到 [elapsedSec] 秒的累计距离（米）。 */
@@ -136,22 +158,36 @@ class PaceProfile(
      *
      * 按公里分段累加，跨段处步数连续；步数与距离强绑定（步数 × 步幅 = 距离），
      * 目标 App 的"步数/里程"交叉校验不会误判。
+     *
+     * 性能：用前缀和缓存。旧实现每次调用都从第 0 段重新循环到当前段（O(k)），
+     * 而本方法在 Hook 进程里会被加速度计回调以约 50 Hz 调用，42 km 全马时要循环 42 段，
+     * 相当于每秒两千多次 `strideM` 计算。现在改为增量维护 [stepsPrefix]：
+     * - 第 k 段跑完整 1000 米后的累计步数存进 `stepsPrefix[k + 1]`；
+     * - 查询时只需 `stepsPrefix[k] + 段内剩余距离 / strideM(k)`，O(1)。
      */
     fun stepsAt(distanceM: Double): Double {
         if (distanceM <= 0.0) return 0.0
-        var remain = distanceM
-        var k = 0
-        var steps = 0.0
-        while (remain > 0.0) {
-            val segment = minOf(remain, 1000.0)
-            steps += segment / strideM(k)
-            remain -= segment
-            k++
-        }
-        return steps
+        val wholeKm = (distanceM / 1000.0).toInt()
+        ensureStepsPrefix(wholeKm)
+        val km = wholeKm.coerceAtMost(stepsPrefix.size - 1)
+        val prefix = stepsPrefix[km]
+        val remain = distanceM - km * 1000.0
+        if (remain <= 0.0) return prefix
+        return prefix + remain / strideM(km)
     }
 
     // ---------------------------------------------------------------- 内部实现
+
+    /** `stepsPrefix[k]` = 走完前 k 个完整公里（k×1000 米）的累计步数。 */
+    private val stepsPrefix = ArrayList<Double>(64).apply { add(0.0) }
+
+    /** 把步数前缀和表补到至少覆盖第 [km] 段。 */
+    private fun ensureStepsPrefix(km: Int) {
+        while (stepsPrefix.size <= km) {
+            val k = stepsPrefix.size - 1
+            stepsPrefix.add(stepsPrefix[k] + 1000.0 / strideM(k))
+        }
+    }
 
     /**
      * 找出 [elapsedSec] 落在第几公里（k 从 0 开始）。
@@ -185,21 +221,25 @@ class PaceProfile(
         while (paces.size <= k) {
             val idx = paces.size
 
-            // ① 每公里浮动：平滑随机游走，夹在 ±perKmVariationSec
-            val prevWobble = if (idx == 0) 0.0 else wobbles[idx - 1]
-            val wobbleStep = uniform(idx, -1.0, 1.0) * perKmVariationSec * 0.6
-            val wobble = (prevWobble + wobbleStep)
-                .coerceIn(-perKmVariationSec, perKmVariationSec)
+            // ① 低频状态起伏：正弦（天然双侧、有界），不再用随机游走
+            val wobble = lowWobble(idx)
             wobbles.add(wobble)
 
-            // ② 力竭：从总路程 40% 后开始，每公里从区间内取一个衰减值，累计封顶 90 秒
-            val decay = if (fatigue == Fatigue.OFF || idx < fatigueStartSegment) {
-                0.0
+            // ② 力竭：固定斜率累加，但**用指数饱和封顶**代替硬截断
+            //
+            // 旧实现是 (斜率 × 段数).coerceAtMost(90)：跑满 9 段后 Δ 恒为 0，
+            // 10 km 之后配速钉死不再变化。真人不会这样，长距离跑者后半程仍在缓慢变慢，
+            // 这是很容易被「逐公里配速序列」识别出来的机器特征。
+            //
+            // 现在改为：线性到 MAX_FATIGUE_ACC_SEC，之后按指数饱和渐近到
+            // (MAX + FATIGUE_SOFT_TAIL_SEC)。详见 [fatigueSoftCap]。
+            // 前 9 公里与旧实现逐字节一致，用户可预期性完整保留。
+            val decayed = if (fatigue == Fatigue.OFF || idx < fatigueStartSegment) {
+                0
             } else {
-                uniformFatigue(idx, fatigue.minSecPerKm, fatigue.maxSecPerKm)
+                idx - fatigueStartSegment + 1
             }
-            val prevFatigue = if (idx == 0) 0.0 else fatigues[idx - 1]
-            val fatigueAcc = (prevFatigue + decay).coerceAtMost(MAX_FATIGUE_ACC_SEC)
+            val fatigueAcc = fatigueSoftCap(fatigue.secPerKm * decayed)
             fatigues.add(fatigueAcc)
 
             // ③ 第一公里偏快（只对 k = 0 生效）
@@ -215,16 +255,64 @@ class PaceProfile(
         }
     }
 
-    /** 确定性均匀分布 [-1, 1]，按 (seed, k) 生成，两端结果一致。 */
-    private fun uniform(k: Int, min: Double, max: Double): Double {
-        val h = splitMix64(seed xor (k.toLong() * GOLDEN_GAMMA))
-        val unit = (h ushr 11).toDouble() / (1L shl 53).toDouble() // [0, 1)
-        return min + (max - min) * unit
+    /**
+     * 疲劳累计值的软封顶：线性到 [MAX_FATIGUE_ACC_SEC]，之后指数饱和渐近。
+     *
+     * ```
+     * f(raw) = raw                                              (raw <= MAX)
+     *        = MAX + L × (1 - exp(-(raw - MAX) / L))            (raw >  MAX)
+     * ```
+     *
+     * 三条性质（均有等价 Python 脚本实算验证，见 `SpNext-322-merge/design_softcap.py`）：
+     *
+     * 1. **导数连续**：`raw = MAX` 处左导数 = 1，右导数 = `L × (1/L) × exp(0)` = 1，
+     *    实测相对误差 0.00e+00。不会出现「每公里增量从 10 秒骤降到 3 秒」的折点。
+     * 2. **有上界**：`raw → ∞` 时 `f → MAX + L`，即累计衰减趋近 115 秒（L = 25），
+     *    极限配速约为基准 +36%，长距离不会掉到荒谬的数值。
+     * 3. **始终在变慢**：`f'(raw) = exp(-(raw-MAX)/L) > 0` 恒成立，
+     *    所以永远不会出现「配速恒定的平台」——这正是旧实现 `coerceAtMost(90)` 的病根。
+     *
+     * 线性段（前 9 公里，强档）与旧实现**逐字节相同**，用户对「每公里 +10 秒」的
+     * 可预期性完全保留；只有超出的部分从「直接截断」改成「渐近」。
+     */
+    private fun fatigueSoftCap(rawSec: Double): Double {
+        if (rawSec <= 0.0) return 0.0
+        if (rawSec <= MAX_FATIGUE_ACC_SEC) return rawSec
+        val excess = rawSec - MAX_FATIGUE_ACC_SEC
+        return MAX_FATIGUE_ACC_SEC +
+            FATIGUE_SOFT_TAIL_SEC * (1.0 - kotlin.math.exp(-excess / FATIGUE_SOFT_TAIL_SEC))
     }
 
-    /** 力竭衰减值，与浮动噪声明文隔离（换一份 seed 域）。 */
-    private fun uniformFatigue(k: Int, min: Double, max: Double): Double =
-        uniform(k + FATIGUE_SALT, min, max)
+    /**
+     * 第 [k] 公里的低频状态起伏（秒），形式为 `A × sin(2π·k/P + φ)`。
+     *
+     * - **幅度 A**：不超过浮动设定；开了力竭时再压到疲劳斜率的
+     *   [WOBBLE_MAX_FATIGUE_RATIO]（0.4）倍以内，保证「设了强衰减就一定看得见变慢」；
+     * - **周期 P**：3.5~5.0 公里之间由 seed 决定，模拟状态的自然波动周期；
+     * - **相位 φ**：由 seed 决定，因此第一公里也参与浮动（两侧都可能）。
+     *
+     * 用正弦而不是随机游走，是为了让它有界、零均值、不长时间偏向一侧——
+     * 旧实现的正弦化前身（随机游走 + 夹逼）会连续几个公里停在 +15，
+     * 把疲劳趋势整段抵消掉，实机上看起来就像「衰减没生效」。
+     */
+    private fun lowWobble(k: Int): Double {
+        if (perKmVariationSec <= 0.0) return 0.0
+        val ampLimit = if (fatigue == Fatigue.OFF) {
+            perKmVariationSec
+        } else {
+            minOf(perKmVariationSec, fatigue.secPerKm * WOBBLE_MAX_FATIGUE_RATIO)
+        }
+        if (ampLimit <= 0.0) return 0.0
+        val period = WOBBLE_PERIOD_MIN_KM + WOBBLE_PERIOD_RANGE_KM * uniformUnit(0)
+        val phase = TWO_PI * uniformUnit(1)
+        return ampLimit * sin(TWO_PI * k / period + phase)
+    }
+
+    /** 确定性均匀分布 [0, 1)，按 (seed, 槽位) 生成，两端结果一致。 */
+    private fun uniformUnit(slot: Int): Double {
+        val h = splitMix64(seed xor (slot.toLong() * GOLDEN_GAMMA))
+        return (h ushr 11).toDouble() / (1L shl 53).toDouble()
+    }
 
     private fun splitMix64(z0: Long): Long {
         var z = z0 + GOLDEN_GAMMA
@@ -257,7 +345,25 @@ class PaceProfile(
 
         const val DEFAULT_VARIATION_SEC = 5.0
         const val DEFAULT_FIRST_KM_BIAS_SEC = -3.0
+
+        /**
+         * 疲劳累计的线性段上限（秒）。累计衰减到这个值之前，每公里严格按档位斜率累加；
+         * 超过之后改用指数饱和（见 [fatigueSoftCap]），避免长距离出现恒速平台。
+         *
+         * 强档 +10 秒/公里 → 第 10 公里处到达本上限。
+         */
         const val MAX_FATIGUE_ACC_SEC = 90.0
+
+        /**
+         * 软封顶在指数饱和段还能再增加的总量（秒），即渐近上限 = `MAX + 本值`。
+         *
+         * 取 25 秒的理由（实算数据见 `SpNext-322-merge/design_softcap.py`）：
+         * - 10 km 以内与旧版**逐字节一致**，不影响主场景（用户通常跑 5~10 km）；
+         * - 11~20 km 区间每公里仍分别 +8.2 / +5.5 / +3.7 / +2.5 / +1.7 … 秒，趋势可见；
+         * - 渐近上限 115 秒 → 全马极限配速 7'17"，比基准慢 36%，不至于荒谬；
+         * - 旧实现在第 10 km 起 Δ 恒为 0、配速永远钉死在 6'52"，是明显的机器特征。
+         */
+        const val FATIGUE_SOFT_TAIL_SEC = 25.0
         /** 默认开始掉速的里程（公里）：跑过 2 km 后逐公里变慢 */
         const val DEFAULT_FATIGUE_START_KM = 2.0
         /** 允许的掉速起点范围（公里） */
@@ -266,7 +372,25 @@ class PaceProfile(
         /** 配速夹逼范围：0.6~2.2 倍基准配速。 */
         const val MIN_PACE_RATIO = 0.6
         const val MAX_PACE_RATIO = 2.2
+
+        /**
+         * 相对降速中分给「步频」的比例（其余给步幅）：0.5 → 步频承担 50%。
+         *
+         * 旧分支原本是 0.4，按 5'22" → 6'00"（相对降速 10.6%、基准步频 ≈169.6 spm）估算只有
+         * −7.2 步/分，擦不到「下降 8~12 步/分」的验收下限。这里取 0.5（≈ −9 步/分），
+         * 余下 50% 仍由步幅承担，真人疲劳时两者本来就一起缩。
+         */
+        const val CADENCE_SHARE = 0.5
+
+        /** 低频浮动幅度上限 = 疲劳斜率 × 该比例，保证疲劳趋势可见。 */
+        const val WOBBLE_MAX_FATIGUE_RATIO = 0.4
+
+        /** 低频浮动的周期范围（公里）：3.5~5.0 一个来回。 */
+        const val WOBBLE_PERIOD_MIN_KM = 3.5
+        const val WOBBLE_PERIOD_RANGE_KM = 1.5
+
+        /** 2π，避免调用处反复声明。 */
+        private const val TWO_PI = 6.283185307179586
         private const val GOLDEN_GAMMA = -0x61c8864680b583ebL
-        private const val FATIGUE_SALT = 7919
     }
 }

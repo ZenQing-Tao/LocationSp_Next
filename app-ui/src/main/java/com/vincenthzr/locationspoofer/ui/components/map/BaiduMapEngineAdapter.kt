@@ -186,6 +186,8 @@ class BaiduMapControllerImpl(
         map.setMapStatus(update)
     }
 
+    // 百度 zoom 口径（3~19 级，每级距离减半），与 Web 墨卡托近似可比。
+    override val cameraZoom: Double? get() = map.mapStatus?.zoom?.toDouble()
     override val cameraTargetLat: Double?
         get() = map.mapStatus?.target?.latitude
     override val cameraTargetLng: Double?

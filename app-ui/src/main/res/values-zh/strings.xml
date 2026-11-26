@@ -653,12 +653,12 @@
     <string name="native_location_blocked_hint">模拟正在运行，原生定位可能被模块拦截而返回模拟点。请先停止模拟再获取当前位置。</string>
     <string name="native_location_timeout">定位超时：GPS 信号弱。请到开阔处重试，或直接手动输入坐标。</string>
     <string name="pace_variation_title">每公里配速浮动</string>
-    <string name="pace_variation_desc">仅路线模式。每公里配速在目标配速上下浮动固定幅度。</string>
+    <string name="pace_variation_desc">仅路线模式。每公里配速在目标配速上下浮动固定幅度（正弦式起伏，涨落交替）。</string>
     <string name="fatigue_title">体力衰减</string>
-    <string name="fatigue_desc">仅路线模式，从以下设定开始掉速的距离开始自然衰减速度</string>
+    <string name="fatigue_desc">仅路线模式，从以下设定开始掉速的距离开始自然衰减速度。开启后每公里固定变慢（弱 +4 秒 / 强 +10 秒），并会自动压低配速浮动的幅度，保证掉速趋势可见。</string>
     <string name="fatigue_off">关</string>
-    <string name="fatigue_weak">弱</string>
-    <string name="fatigue_strong">强</string>
+    <string name="fatigue_weak">弱（每公里 +4 秒）</string>
+    <string name="fatigue_strong">强（每公里 +10 秒）</string>
     <string name="first_km_title">首公里偏快</string>
     <string name="first_km_desc">仅路线模式。起步略快，之后回落到目标配速。</string>
     <string name="fatigue_start_title">开始掉速于</string>

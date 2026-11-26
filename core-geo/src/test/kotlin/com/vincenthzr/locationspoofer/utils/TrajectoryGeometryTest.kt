@@ -77,4 +77,50 @@ class TrajectoryGeometryTest {
         val dRight = GeoMath.distance(LatLng(right[0].first, right[0].second), LatLng(right[1].first, right[1].second))
         assertEquals(dLeft, dRight, 1e-6)
     }
+
+    // ==============================================================
+    // 3.2.1：箭头大小固定，不随地图缩放忽大忽小
+    //
+    // 实机问题：刚开录时地图被 fitBounds 拉得很近，2 米的箭头只有几个像素（几乎看不见）；
+    // 走远后视野拉大，同一段 2 米又变得巨大，把轨迹整段盖住。
+    // ==============================================================
+
+    @Test
+    fun `meters per pixel halves with every zoom level`() {
+        val lat = 30.0
+        val a = TrajectoryGeometry.metersPerPixel(16.0, lat)
+        val b = TrajectoryGeometry.metersPerPixel(17.0, lat)
+        assertEquals(a / 2.0, b, 1e-6)
+    }
+
+    @Test
+    fun `arrow length keeps the same screen size at any zoom`() {
+        val lat = 30.0
+        val pixels = 34.0
+        // 缩放级别越高，同样像素数对应的地面距离越短
+        val near = TrajectoryGeometry.arrowLengthForPixels(18.0, lat, pixels)
+        val far = TrajectoryGeometry.arrowLengthForPixels(15.0, lat, pixels)
+        assertTrue("near=$near far=$far", near < far)
+        // 换算回像素后应当一致（这是「屏幕大小恒定」的直接定义）
+        val pxNear = near / TrajectoryGeometry.metersPerPixel(18.0, lat)
+        val pxFar = far / TrajectoryGeometry.metersPerPixel(15.0, lat)
+        assertEquals(pixels, pxNear, 1e-6)
+        assertEquals(pixels, pxFar, 1e-6)
+    }
+
+    @Test
+    fun `arrow length falls back to a fixed value when zoom is unknown`() {
+        val fallback = TrajectoryGeometry.arrowLengthForPixels(null, 30.0, 34.0, fallbackM = 2.0)
+        assertEquals(2.0, fallback, 1e-9)
+    }
+
+    @Test
+    fun `arrow length stays within sane bounds`() {
+        val lat = 30.0
+        // 极端缩放级别也不能产生荒谬的长度
+        val huge = TrajectoryGeometry.arrowLengthForPixels(2.0, lat, 34.0)
+        assertTrue("huge=$huge", huge <= 500.0)
+        val tiny = TrajectoryGeometry.arrowLengthForPixels(22.0, lat, 34.0)
+        assertTrue("tiny=$tiny", tiny >= 0.5)
+    }
 }
